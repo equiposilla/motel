@@ -54,7 +54,7 @@
         if (m.premium.available > 0) parts.push("Premium");
         status.textContent = "Disponible: " + parts.join(" / ");
         status.className = "badge bg-success";
-        btn.disabled = true; // HU-01
+        btn.disabled = false; 
       }
     });
   }
