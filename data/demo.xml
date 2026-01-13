@@ -1,0 +1,109 @@
+<odoo noupdate="1">
+    <!-- Tipos -->
+    <record id="room_type_normal" model="motel.room.type">
+        <field name="name">Normal</field>
+        <field name="code">normal</field>
+        <field name="price_per_night">100</field>
+    </record>
+    <record id="room_type_premium" model="motel.room.type">
+        <field name="name">Premium</field>
+        <field name="code">premium</field>
+        <field name="price_per_night">200</field>
+    </record>
+
+    <!-- 4 Moteles -->
+    <record id="motel_1" model="motel.motel">
+        <field name="name">Motel Norte</field>
+        <field name="street">Av. Principal 123</field>
+        <field name="city">Ciudad A</field>
+    </record>
+    <record id="motel_2" model="motel.motel">
+        <field name="name">Motel Centro</field>
+        <field name="street">Calle 9 #45</field>
+        <field name="city">Ciudad B</field>
+    </record>
+    <record id="motel_3" model="motel.motel">
+        <field name="name">Motel Sur</field>
+        <field name="street">Blvd. Sur 77</field>
+        <field name="city">Ciudad C</field>
+    </record>
+    <record id="motel_4" model="motel.motel">
+        <field name="name">Motel Aeropuerto</field>
+        <field name="street">Carretera 5 km 2</field>
+        <field name="city">Ciudad D</field>
+    </record>
+
+    <!-- Habitaciones: 10 normales + 5 premium por motel -->
+    <!-- Motel 1 -->
+    <record id="m1_n01" model="motel.room"><field name="name">N-01</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n02" model="motel.room"><field name="name">N-02</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n03" model="motel.room"><field name="name">N-03</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n04" model="motel.room"><field name="name">N-04</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n05" model="motel.room"><field name="name">N-05</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n06" model="motel.room"><field name="name">N-06</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n07" model="motel.room"><field name="name">N-07</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n08" model="motel.room"><field name="name">N-08</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n09" model="motel.room"><field name="name">N-09</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m1_n10" model="motel.room"><field name="name">N-10</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_normal"/></record>
+
+    <record id="m1_p01" model="motel.room"><field name="name">P-01</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m1_p02" model="motel.room"><field name="name">P-02</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m1_p03" model="motel.room"><field name="name">P-03</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m1_p04" model="motel.room"><field name="name">P-04</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m1_p05" model="motel.room"><field name="name">P-05</field><field name="motel_id" ref="motel_1"/><field name="room_type_id" ref="room_type_premium"/></record>
+
+    <!--motel_2 -->
+    <record id="m2_n01" model="motel.room"><field name="name">N-01</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n02" model="motel.room"><field name="name">N-02</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n03" model="motel.room"><field name="name">N-03</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n04" model="motel.room"><field name="name">N-04</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n05" model="motel.room"><field name="name">N-05</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n06" model="motel.room"><field name="name">N-06</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n07" model="motel.room"><field name="name">N-07</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n08" model="motel.room"><field name="name">N-08</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n09" model="motel.room"><field name="name">N-09</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m2_n10" model="motel.room"><field name="name">N-10</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_normal"/></record>
+
+    <record id="m2_p01" model="motel.room"><field name="name">P-01</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m2_p02" model="motel.room"><field name="name">P-02</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m2_p03" model="motel.room"><field name="name">P-03</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m2_p04" model="motel.room"><field name="name">P-04</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m2_p05" model="motel.room"><field name="name">P-05</field><field name="motel_id" ref="motel_2"/><field name="room_type_id" ref="room_type_premium"/></record>
+
+    <!--motel_3 -->
+    <record id="m3_n01" model="motel.room"><field name="name">N-01</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n02" model="motel.room"><field name="name">N-02</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n03" model="motel.room"><field name="name">N-03</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n04" model="motel.room"><field name="name">N-04</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n05" model="motel.room"><field name="name">N-05</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n06" model="motel.room"><field name="name">N-06</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n07" model="motel.room"><field name="name">N-07</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n08" model="motel.room"><field name="name">N-08</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n09" model="motel.room"><field name="name">N-09</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m3_n10" model="motel.room"><field name="name">N-10</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_normal"/></record>
+
+    <record id="m3_p01" model="motel.room"><field name="name">P-01</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m3_p02" model="motel.room"><field name="name">P-02</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m3_p03" model="motel.room"><field name="name">P-03</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m3_p04" model="motel.room"><field name="name">P-04</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m3_p05" model="motel.room"><field name="name">P-05</field><field name="motel_id" ref="motel_3"/><field name="room_type_id" ref="room_type_premium"/></record>
+
+    <!--motel_4 -->
+    <record id="m4_n01" model="motel.room"><field name="name">N-01</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n02" model="motel.room"><field name="name">N-02</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n03" model="motel.room"><field name="name">N-03</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n04" model="motel.room"><field name="name">N-04</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n05" model="motel.room"><field name="name">N-05</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n06" model="motel.room"><field name="name">N-06</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n07" model="motel.room"><field name="name">N-07</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n08" model="motel.room"><field name="name">N-08</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n09" model="motel.room"><field name="name">N-09</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+    <record id="m4_n10" model="motel.room"><field name="name">N-10</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_normal"/></record>
+
+    <record id="m4_p01" model="motel.room"><field name="name">P-01</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m4_p02" model="motel.room"><field name="name">P-02</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m4_p03" model="motel.room"><field name="name">P-03</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m4_p04" model="motel.room"><field name="name">P-04</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_premium"/></record>
+    <record id="m4_p05" model="motel.room"><field name="name">P-05</field><field name="motel_id" ref="motel_4"/><field name="room_type_id" ref="room_type_premium"/></record>
+
+</odoo>

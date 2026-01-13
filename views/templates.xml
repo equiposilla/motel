@@ -1,0 +1,75 @@
+<odoo>
+  <template id="motels_page" name="Moteles - Disponibilidad">
+    <t t-call="website.layout">
+      <div class="container my-4" id="motel_availability_root">
+        <h1 class="mb-3">Disponibilidad de Moteles</h1>
+
+        <!-- Selector de fechas -->
+        <div class="row g-2 align-items-end mb-4">
+          <div class="col-12 col-md-3">
+            <label class="form-label">Entrada</label>
+            <input type="date" class="form-control" id="checkin" t-att-min="today"/>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Salida</label>
+            <input type="date" class="form-control" id="checkout" t-att-min="today"/>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="alert alert-warning d-none" id="date_error"></div>
+          </div>
+        </div>
+
+        <!-- Moteles -->
+        <div class="row g-3" id="motels_grid">
+          <t t-foreach="motels" t-as="m">
+            <div class="col-12 col-md-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h5 class="card-title mb-1">
+                    <t t-esc="m.name"/>
+                  </h5>
+                  <div class="text-muted mb-2">
+                    <t t-esc="m.display_address()"/> ·
+                    <span><t t-esc="m.room_total"/> hab.</span>
+                  </div>
+
+                  <div class="d-flex justify-content-between border rounded p-2 mb-2">
+                    <div>
+                      <div class="fw-semibold">Normal</div>
+                      <div class="text-muted small">Precio/noche: <span data-price-normal="1">—</span></div>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-semibold" data-available-normal="1">—</div>
+                      <div class="text-muted small">disponibles</div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between border rounded p-2 mb-3">
+                    <div>
+                      <div class="fw-semibold">Premium</div>
+                      <div class="text-muted small">Precio/noche: <span data-price-premium="1">—</span></div>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-semibold" data-available-premium="1">—</div>
+                      <div class="text-muted small">disponibles</div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
+                    <!-- No se implementa reserva (fuera de alcance) -->
+                    <button class="btn btn-primary" data-action-reserve="1" disabled="disabled">
+                      Reservar
+                    </button>
+                  </div>
+
+                  <input type="hidden" data-motel-id="1" t-att-value="m.id"/>
+                </div>
+              </div>
+            </div>
+          </t>
+        </div>
+      </div>
+    </t>
+  </template>
+</odoo>
