@@ -58,9 +58,13 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
                     <!-- No se implementa reserva (fuera de alcance) -->
-                    <button class="btn btn-primary" data-action-reserve="1" disabled="disabled">
+                    <a class="btn btn-primary disabled"
+                      role="button"
+                      aria-disabled="true"
+                      data-action-reserve="1"
+                      href="#">
                       Reservar
-                    </button>
+                    </a>
                   </div>
 
                   <input type="hidden" data-motel-id="1" t-att-value="m.id"/>

@@ -21,15 +21,22 @@ class MotelAvailabilityController(http.Controller):
     @http.route("/motels", type="http", auth="public", website=True, sitemap=True)
     def motels_page(self, **kw):
         motels = request.env["motel.motel"].sudo().search([], order="id asc", limit=4)
-        today = fields.Date.to_string(date.today())
-        return request.render("motel_availability.motels_page", {
-            "motels": motels,
-            "today": today,
-        })
+
+        # ⚠️ date.today() usa zona del servidor; mejor contextual en website
+        today = fields.Date.to_string(fields.Date.context_today(request.env.user))
+
+        return request.render(
+            "motel_availability.motels_page",
+            {"motels": motels, "today": today},
+        )
 
     # ==========================================================
     # Helpers
     # ==========================================================
+    def _today(self):
+        """Fecha 'hoy' en contexto Odoo (mejor para website)."""
+        return fields.Date.context_today(request.env.user)
+
     def _validate_dates(self, checkin, checkout):
         """Devuelve (d_in, d_out, error_msg)."""
         d_in = fields.Date.from_string(checkin) if checkin else None
@@ -39,17 +46,26 @@ class MotelAvailabilityController(http.Controller):
             return None, None, "Selecciona fecha de entrada y salida."
         if d_out <= d_in:
             return None, None, "La salida debe ser posterior a la entrada."
-        if d_in < date.today():
+        if d_in < self._today():
             return None, None, "No se permiten fechas en el pasado."
         return d_in, d_out, None
+
+    def _get_room_types(self):
+        """
+        Asegura que el cálculo HU-01 solo use normal/premium.
+        Fallback: si no existen, usa todos (para no romper en BD incompleta).
+        """
+        RoomType = request.env["motel.room.type"].sudo()
+        rtypes = RoomType.search([("code", "in", ("normal", "premium"))])
+        return rtypes or RoomType.search([])
 
     def _compute_availability_payload(self, d_in, d_out):
         Motel = request.env["motel.motel"].sudo()
         Room = request.env["motel.room"].sudo()
         Res = request.env["motel.reservation"].sudo()
-        RoomType = request.env["motel.room.type"].sudo()
 
         motels = Motel.search([], order="id asc", limit=4)
+        rtypes = self._get_room_types()
 
         # Totales por motel y tipo
         totals = Room.read_group(
@@ -58,10 +74,12 @@ class MotelAvailabilityController(http.Controller):
             groupby=["motel_id", "room_type_id"],
             lazy=False,
         )
-        total_map = {(r["motel_id"][0], r["room_type_id"][0]): r["__count"] for r in totals}
+        total_map = {}
+        for r in totals:
+            if r.get("motel_id") and r.get("room_type_id"):
+                total_map[(r["motel_id"][0], r["room_type_id"][0])] = r["__count"]
 
         # Ocupadas (reservas confirmadas traslapadas)
-        # traslape: checkin < d_out AND checkout > d_in
         occupied = Res.read_group(
             domain=[
                 ("state", "=", "confirmed"),
@@ -83,12 +101,12 @@ class MotelAvailabilityController(http.Controller):
                 groupby=["motel_id", "room_type_id"],
                 lazy=False,
             )
-            occ_by_type = {(r["motel_id"][0], r["room_type_id"][0]): r["__count"] for r in occ2}
+            for r in occ2:
+                if r.get("motel_id") and r.get("room_type_id"):
+                    occ_by_type[(r["motel_id"][0], r["room_type_id"][0])] = r["__count"]
 
-        # Tipos + precios (normal/premium)
-        rtypes = RoomType.search([])
-        price_by_type = {rt.id: float(rt.price_per_night) for rt in rtypes}
-        code_by_type = {rt.id: rt.code for rt in rtypes}
+        price_by_type = {rt.id: float(rt.price_per_night or 0.0) for rt in rtypes}
+        code_by_type = {rt.id: (rt.code or "").strip() for rt in rtypes}
 
         payload = []
         for m in motels:
@@ -101,48 +119,58 @@ class MotelAvailabilityController(http.Controller):
                 avail = max(total - occ, 0)
                 item = {"available": avail, "price": price_by_type.get(rt.id, 0.0)}
 
-                if code_by_type.get(rt.id) == "normal":
+                code = code_by_type.get(rt.id)
+                if code == "normal":
                     normal = item
-                elif code_by_type.get(rt.id) == "premium":
+                elif code == "premium":
                     premium = item
 
-            payload.append({
-                "id": m.id,
-                "name": m.name,
-                "location": m.display_address(),
-                "room_total": m.room_total,
-                "normal": normal,
-                "premium": premium,
-                "has_availability": (normal["available"] + premium["available"]) > 0,
-            })
+            payload.append(
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "location": m.display_address(),
+                    "room_total": m.room_total,
+                    "normal": normal,
+                    "premium": premium,
+                    "has_availability": (normal["available"] + premium["available"]) > 0,
+                }
+            )
 
         return payload
 
     def _find_available_room(self, motel_id, room_type_code, d_in, d_out):
-        """Selecciona 1 habitación libre (first-fit) para evitar overbooking."""
+        """Selecciona 1 habitación libre (first-fit)."""
         RoomType = request.env["motel.room.type"].sudo()
         Room = request.env["motel.room"].sudo()
         Res = request.env["motel.reservation"].sudo()
+
+        if room_type_code not in ("normal", "premium"):
+            return None
 
         rt = RoomType.search([("code", "=", room_type_code)], limit=1)
         if not rt:
             return None
 
-        rooms = Room.search([
-            ("motel_id", "=", motel_id),
-            ("room_type_id", "=", rt.id),
-            ("active", "=", True),
-        ], order="id asc")
-
+        rooms = Room.search(
+            [
+                ("motel_id", "=", motel_id),
+                ("room_type_id", "=", rt.id),
+                ("active", "=", True),
+            ],
+            order="id asc",
+        )
         if not rooms:
             return None
 
-        occupied = Res.search([
-            ("state", "=", "confirmed"),
-            ("room_id", "in", rooms.ids),
-            ("checkin_date", "<", d_out),
-            ("checkout_date", ">", d_in),
-        ]).mapped("room_id")
+        occupied = Res.search(
+            [
+                ("state", "=", "confirmed"),
+                ("room_id", "in", rooms.ids),
+                ("checkin_date", "<", d_out),
+                ("checkout_date", ">", d_in),
+            ]
+        ).mapped("room_id")
 
         free_rooms = rooms - occupied
         return free_rooms[:1] if free_rooms else None
@@ -155,36 +183,35 @@ class MotelAvailabilityController(http.Controller):
         if partner:
             vals = {}
             full_name = f"{first} {last}".strip()
-            if full_name and (not partner.name or partner.name.strip() == ""):
+            if full_name and (not partner.name or not partner.name.strip()):
                 vals["name"] = full_name
-            if phone and (not partner.phone or partner.phone.strip() == ""):
+            if phone and (not partner.phone or not partner.phone.strip()):
                 vals["phone"] = phone
             if vals:
                 partner.write(vals)
             return partner
 
-        return Partner.create({
-            "name": f"{first} {last}".strip(),
-            "email": email_norm,
-            "phone": phone,
-        })
+        return Partner.create(
+            {"name": f"{first} {last}".strip(), "email": email_norm, "phone": phone}
+        )
 
     def _ensure_reservation_product(self):
         """
-        Crea (si no existe) un producto SERVICIO estable para líneas de venta.
-        Usamos product.template para evitar problemas de variante.
+        Producto SERVICIO estable para líneas de venta.
+        Se crea vía product.template para evitar problemas de variantes.
         """
         Template = request.env["product.template"].sudo()
         tmpl = Template.search([("default_code", "=", "MOTEL_ROOM_NIGHT")], limit=1)
         if not tmpl:
-            # Nota: en algunas BD puede requerir categ/UoM; Odoo suele asignar defaults.
-            tmpl = Template.create({
-                "name": "Motel Room Night",
-                "default_code": "MOTEL_ROOM_NIGHT",
-                "type": "service",
-                "sale_ok": True,
-                "purchase_ok": False,
-            })
+            tmpl = Template.create(
+                {
+                    "name": "Motel Room Night",
+                    "default_code": "MOTEL_ROOM_NIGHT",
+                    "type": "service",
+                    "sale_ok": True,
+                    "purchase_ok": False,
+                }
+            )
         return tmpl.product_variant_id
 
     # ==========================================================
@@ -215,7 +242,7 @@ class MotelAvailabilityController(http.Controller):
         )
 
     # ==========================================================
-    # (Opcional) HU-01: Endpoint JSON-RPC (si luego usas jsonRpc)
+    # (Opcional) HU-01: Endpoint JSON-RPC (si usas jsonRpc)
     # ==========================================================
     @http.route("/motels/availability", type="json", auth="public", website=True)
     def motels_availability(self, checkin, checkout):
@@ -225,29 +252,45 @@ class MotelAvailabilityController(http.Controller):
         return {"motels": self._compute_availability_payload(d_in, d_out)}
 
     # ==========================================================
-    # HU-02: Formulario público de reserva (sin login)
+    # HU-02: Formulario público de reserva
     # ==========================================================
     @http.route("/motels/reserve", type="http", auth="public", website=True, sitemap=False)
     def reserve_page(self, motel_id=None, room_type=None, checkin=None, checkout=None, **kw):
         Motel = request.env["motel.motel"].sudo()
 
-        motel = Motel.browse(int(motel_id)) if motel_id else Motel.browse([])
+        motel = Motel.browse(int(motel_id)) if motel_id and str(motel_id).isdigit() else Motel.browse([])
         if motel_id and (not motel or not motel.exists()):
             return request.not_found()
 
-        today = date.today()
+        today = self._today()
         today_str = fields.Date.to_string(today)
         tomorrow_str = fields.Date.to_string(today + timedelta(days=1))
 
-        return request.render("motel_availability.reserve_page", {
-            "motel": motel,
-            "room_type": (room_type or "").strip(),
-            "checkin": checkin or today_str,
-            "checkout": checkout or tomorrow_str,
-            "login_url": "/web/login",  # opcional, no bloquea
-            "errors": {},
-            "prefill": {},
-        })
+        # Si vienen fechas por querystring, validarlas suavemente (si fallan, cae a defaults)
+        d_in, d_out, err = self._validate_dates(checkin or today_str, checkout or tomorrow_str)
+        if err:
+            checkin = today_str
+            checkout = tomorrow_str
+        else:
+            checkin = fields.Date.to_string(d_in)
+            checkout = fields.Date.to_string(d_out)
+
+        room_type = (room_type or "").strip()
+        if room_type not in ("normal", "premium"):
+            room_type = "normal"  # default safe
+
+        return request.render(
+            "motel_availability.reserve_page",
+            {
+                "motel": motel,
+                "room_type": room_type,
+                "checkin": checkin,
+                "checkout": checkout,
+                "login_url": "/web/login",
+                "errors": {},
+                "prefill": {},
+            },
+        )
 
     # ==========================================================
     # HU-02: Confirmación (POST)
@@ -261,17 +304,17 @@ class MotelAvailabilityController(http.Controller):
         # --- Rate limit básico (IP + email) ---
         Rate = request.env["motel.rate.limit"].sudo()
         try:
-            if Rate.is_limited(f"ip:{ip}", window_minutes=10, max_hits=10) or \
-               (email and Rate.is_limited(f"email:{email}", window_minutes=10, max_hits=5)):
-                return request.render("motel_availability.reserve_error", {
-                    "message": "Demasiados intentos. Intenta más tarde.",
-                    "attempt_uuid": attempt_uuid,
-                })
+            if Rate.is_limited(f"ip:{ip}", window_minutes=10, max_hits=10) or (
+                email and Rate.is_limited(f"email:{email}", window_minutes=10, max_hits=5)
+            ):
+                return request.render(
+                    "motel_availability.reserve_error",
+                    {"message": "Demasiados intentos. Intenta más tarde.", "attempt_uuid": attempt_uuid},
+                )
             Rate.hit(f"ip:{ip}")
             if email:
                 Rate.hit(f"email:{email}")
         except Exception:
-            # Si el rate-limit falla, NO bloqueamos reservas, solo lo registramos
             _logger.exception("Rate limit failure (attempt=%s, ip=%s, email=%s)", attempt_uuid, ip, email)
 
         # --- Validaciones mínimas CA-02 ---
@@ -296,7 +339,6 @@ class MotelAvailabilityController(http.Controller):
             errors["phone"] = "Teléfono inválido."
         if not terms:
             errors["terms"] = "Debes aceptar Términos y Condiciones."
-
         if room_type not in ("normal", "premium"):
             errors["room_type"] = "Tipo de habitación inválido."
 
@@ -313,17 +355,20 @@ class MotelAvailabilityController(http.Controller):
             errors["motel_id"] = "Motel inválido."
 
         if errors:
-            return request.render("motel_availability.reserve_page", {
-                "motel": motel,
-                "room_type": room_type,
-                "checkin": checkin,
-                "checkout": checkout,
-                "login_url": "/web/login",
-                "errors": errors,
-                "prefill": {"first": first, "last": last, "email": email, "phone": phone, "terms": terms},
-            })
+            return request.render(
+                "motel_availability.reserve_page",
+                {
+                    "motel": motel,
+                    "room_type": room_type,
+                    "checkin": checkin,
+                    "checkout": checkout,
+                    "login_url": "/web/login",
+                    "errors": errors,
+                    "prefill": {"first": first, "last": last, "email": email, "phone": phone, "terms": terms},
+                },
+            )
 
-        # --- Creación (CA-03) con savepoint para controlar errores ---
+        # --- Creación (CA-03) con savepoint ---
         try:
             with request.env.cr.savepoint():
                 motel_id_int = int(motel_id)
@@ -331,10 +376,13 @@ class MotelAvailabilityController(http.Controller):
                 # 1) Habitación libre real
                 room = self._find_available_room(motel_id_int, room_type, d_in, d_out)
                 if not room:
-                    return request.render("motel_availability.reserve_error", {
-                        "message": "No hay habitaciones disponibles para ese rango. Cambia fechas o tipo.",
-                        "attempt_uuid": attempt_uuid,
-                    })
+                    return request.render(
+                        "motel_availability.reserve_error",
+                        {
+                            "message": "No hay habitaciones disponibles para ese rango. Cambia fechas o tipo.",
+                            "attempt_uuid": attempt_uuid,
+                        },
+                    )
 
                 # 2) Partner (guest)
                 partner = self._get_or_create_partner(first, last, email, phone)
@@ -344,45 +392,55 @@ class MotelAvailabilityController(http.Controller):
                 nights = (d_out - d_in).days
 
                 rt = request.env["motel.room.type"].sudo().search([("code", "=", room_type)], limit=1)
-                price_unit = float(rt.price_per_night) if rt else 0.0
+                price_unit = float(rt.price_per_night or 0.0) if rt else 0.0
 
-                so = request.env["sale.order"].sudo().create({
-                    "partner_id": partner.id,
-                    "origin": attempt_uuid,
-                    "note": f"Reserva {room.motel_id.name} / Habitación {room.name} / {checkin} → {checkout}",
-                    "order_line": [(0, 0, {
-                        "product_id": product.id,
-                        "name": f"Habitación {room_type.upper()} - {room.motel_id.name} ({room.name}) {checkin}→{checkout}",
-                        "product_uom_qty": nights,
-                        "price_unit": price_unit,
-                    })],
-                })
+                so = request.env["sale.order"].sudo().create(
+                    {
+                        "partner_id": partner.id,
+                        "origin": attempt_uuid,
+                        "note": f"Reserva {room.motel_id.name} / Habitación {room.name} / {checkin} → {checkout}",
+                        "order_line": [
+                            (
+                                0,
+                                0,
+                                {
+                                    "product_id": product.id,
+                                    "name": f"Habitación {room_type.upper()} - {room.motel_id.name} ({room.name}) {checkin}→{checkout}",
+                                    "product_uom_qty": nights,
+                                    "price_unit": price_unit,
+                                },
+                            )
+                        ],
+                    }
+                )
 
-                # 4) Reserva (confirmed solo si SO existe)
-                reservation = request.env["motel.reservation"].sudo().create({
-                    "attempt_uuid": attempt_uuid,
-                    "room_id": room.id,
-                    "checkin_date": d_in,
-                    "checkout_date": d_out,
-                    "state": "confirmed",
-                    "guest_first_name": first,
-                    "guest_last_name": last,
-                    "guest_email": email,
-                    "guest_phone": phone,
-                    "terms_accepted": True,
-                    "partner_id": partner.id,
-                    "sale_order_id": so.id,
-                })
+                # 4) Reserva
+                reservation = request.env["motel.reservation"].sudo().create(
+                    {
+                        "attempt_uuid": attempt_uuid,
+                        "room_id": room.id,
+                        "checkin_date": d_in,
+                        "checkout_date": d_out,
+                        "state": "confirmed",
+                        "guest_first_name": first,
+                        "guest_last_name": last,
+                        "guest_email": email,
+                        "guest_phone": phone,
+                        "terms_accepted": True,
+                        "partner_id": partner.id,
+                        "sale_order_id": so.id,
+                    }
+                )
 
-            # 5) Confirmación en pantalla
+            # ⚠️ IMPORTANTE: esto requiere que exista reservation.reference
             return request.redirect(f"/motels/confirmation/{reservation.reference}")
 
         except Exception as e:
             _logger.exception("Error confirmando reserva (attempt=%s): %s", attempt_uuid, e)
-            return request.render("motel_availability.reserve_error", {
-                "message": "No se pudo confirmar la reserva. Intenta nuevamente.",
-                "attempt_uuid": attempt_uuid,
-            })
+            return request.render(
+                "motel_availability.reserve_error",
+                {"message": "No se pudo confirmar la reserva. Intenta nuevamente.", "attempt_uuid": attempt_uuid},
+            )
 
     # ==========================================================
     # HU-02: Confirmación (pantalla)
@@ -393,6 +451,4 @@ class MotelAvailabilityController(http.Controller):
         reservation = Res.search([("reference", "=", reference)], limit=1)
         if not reservation:
             return request.not_found()
-        return request.render("motel_availability.confirmation_page", {
-            "reservation": reservation,
-        })
+        return request.render("motel_availability.confirmation_page", {"reservation": reservation})
