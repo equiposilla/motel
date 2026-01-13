@@ -4,5 +4,4 @@ access_motel_room_public,motel.room public,model_motel_room,base.group_public,1,
 access_motel_room_type_public,motel.room.type public,model_motel_room_type,base.group_public,1,0,0,0
 access_motel_reservation_user,motel.reservation user,model_motel_reservation,base.group_user,1,1,1,1
 access_motel_reservation_manager,motel_reservation_manager,model_motel_reservation,,1,1,1,1
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_motel_rate_limit,motel.rate.limit,model_motel_rate_limit,,1,0,1,0
