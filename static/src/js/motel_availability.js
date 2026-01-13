@@ -6,11 +6,9 @@
   }
 
   function formatMoney(v) {
-    const n = Number(v || 0);
-    return "$" + n.toFixed(2);
+    return "$" + Number(v || 0).toFixed(2);
   }
 
-  // Evita usar toISOString() para "hoy" porque depende de UTC (puede dar ayer/mañana)
   function todayLocalISO() {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -20,7 +18,6 @@
   }
 
   function addDaysISO(iso, days) {
-    // Parse ISO YYYY-MM-DD como fecha local (evita desfases)
     const [y, m, d] = iso.split("-").map((x) => parseInt(x, 10));
     const dt = new Date(y, m - 1, d);
     dt.setDate(dt.getDate() + days);
@@ -42,105 +39,76 @@
       `/motels/availability_http?checkin=${encodeURIComponent(checkin)}` +
       `&checkout=${encodeURIComponent(checkout)}`;
 
-    const r = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    });
-
-    let data;
-    try {
-      data = await r.json();
-    } catch (e) {
-      throw new Error("Respuesta inválida del servidor (no JSON).");
-    }
-
-    if (!r.ok) {
-      throw new Error(data && data.error ? data.error : "Error consultando disponibilidad.");
-    }
+    const r = await fetch(url, { credentials: "same-origin" });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Error consultando disponibilidad.");
     return data.motels || [];
   }
 
   function setReserveLink(btn, motelId, roomType, checkin, checkout) {
-  const url =
-    `/motels/reserve?motel_id=${encodeURIComponent(String(motelId))}` +
-    `&room_type=${encodeURIComponent(roomType)}` +
-    `&checkin=${encodeURIComponent(checkin)}` +
-    `&checkout=${encodeURIComponent(checkout)}`;
+    const url =
+      `/motels/reserve?motel_id=${encodeURIComponent(String(motelId))}` +
+      `&room_type=${encodeURIComponent(roomType)}` +
+      `&checkin=${encodeURIComponent(checkin)}` +
+      `&checkout=${encodeURIComponent(checkout)}`;
+    btn.setAttribute("href", url);
+  }
 
-  btn.setAttribute("href", url);
-}
+  function enableLink(btn) {
+    btn.classList.remove("disabled");
+    btn.removeAttribute("aria-disabled");
+  }
 
-function enableLink(btn) {
-  btn.classList.remove("disabled");
-  btn.removeAttribute("aria-disabled");
-}
-
-function disableLink(btn) {
-  btn.classList.add("disabled");
-  btn.setAttribute("aria-disabled", "true");
-  btn.setAttribute("href", "#");
-}
+  function disableLink(btn) {
+    btn.classList.add("disabled");
+    btn.setAttribute("aria-disabled", "true");
+    btn.setAttribute("href", "#");
+  }
 
   function renderMotels(motels, checkinValue, checkoutValue) {
     document.querySelectorAll("#motels_grid .card").forEach((card) => {
-      const motelInput = card.querySelector("input[data-motel-id]");
-      if (!motelInput) return;
-
-      const motelId = Number(motelInput.value);
+      const motelId = Number(card.querySelector("input[data-motel-id]").value);
       const m = motels.find((x) => x.id === motelId);
       if (!m) return;
 
-      const elPriceNormal = card.querySelector("[data-price-normal]");
-      const elPricePremium = card.querySelector("[data-price-premium]");
-      const elAvailNormal = card.querySelector("[data-available-normal]");
-      const elAvailPremium = card.querySelector("[data-available-premium]");
+      card.querySelector("[data-price-normal]").textContent = formatMoney(m.normal.price);
+      card.querySelector("[data-price-premium]").textContent = formatMoney(m.premium.price);
+      card.querySelector("[data-available-normal]").textContent = m.normal.available;
+      card.querySelector("[data-available-premium]").textContent = m.premium.available;
+
       const status = card.querySelector("[data-status]");
-      const btn = card.querySelector("[data-action-reserve]");
-
-      if (elPriceNormal) elPriceNormal.textContent = formatMoney(m.normal && m.normal.price);
-      if (elPricePremium) elPricePremium.textContent = formatMoney(m.premium && m.premium.price);
-      if (elAvailNormal) elAvailNormal.textContent = String((m.normal && m.normal.available) || 0);
-      if (elAvailPremium) elAvailPremium.textContent = String((m.premium && m.premium.available) || 0);
-
-      if (!status || !btn) return;
+      const btnNormal = card.querySelector("[data-action-reserve-normal]");
+      const btnPremium = card.querySelector("[data-action-reserve-premium]");
 
       if (!m.has_availability) {
         status.textContent = "Sin disponibilidad";
         status.className = "badge bg-danger";
-        disableLink(btn);
+        disableLink(btnNormal);
+        disableLink(btnPremium);
         return;
       }
-
-      // Decide tipo por defecto: normal si hay, si no premium
-      let chosenType = null;
-      if (m.normal && m.normal.available > 0) chosenType = "normal";
-      else if (m.premium && m.premium.available > 0) chosenType = "premium";
 
       const parts = [];
-      if (m.normal && m.normal.available > 0) parts.push("Normal");
-      if (m.premium && m.premium.available > 0) parts.push("Premium");
-      status.textContent = "Disponible: " + (parts.length ? parts.join(" / ") : "—");
+      if (m.normal.available > 0) parts.push("Normal");
+      if (m.premium.available > 0) parts.push("Premium");
+
+      status.textContent = "Disponible: " + parts.join(" / ");
       status.className = "badge bg-success";
 
-      if (!chosenType) {
-        // raro, pero por seguridad
-        disableLink(btn);
-        return;
+      if (m.normal.available > 0) {
+        setReserveLink(btnNormal, motelId, "normal", checkinValue, checkoutValue);
+        enableLink(btnNormal);
+      } else {
+        disableLink(btnNormal);
       }
 
-      setReserveLink(btn, motelId, chosenType, checkinValue, checkoutValue);
-      enableLink(btn);
+      if (m.premium.available > 0) {
+        setReserveLink(btnPremium, motelId, "premium", checkinValue, checkoutValue);
+        enableLink(btnPremium);
+      } else {
+        disableLink(btnPremium);
+      }
     });
-  }
-
-
-  function debounce(fn, ms) {
-    let t;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), ms);
-    };
   }
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -150,53 +118,33 @@ function disableLink(btn) {
     const checkin = qs("#checkin");
     const checkout = qs("#checkout");
     const errorBox = qs("#date_error");
-    if (!checkin || !checkout || !errorBox) return;
 
     const t = todayLocalISO();
-    if (!checkin.value) checkin.value = t;
-    if (!checkout.value) checkout.value = addDaysISO(checkin.value || t, 1);
-
+    checkin.value = t;
+    checkout.value = addDaysISO(t, 1);
     checkin.min = t;
-    // checkout.min debe ser >= checkin (mejor UX)
-    checkout.min = addDaysISO(checkin.value, 1);
+    checkout.min = addDaysISO(t, 1);
 
-    function showError(msg) {
-      if (!msg) {
-        errorBox.classList.add("d-none");
-        errorBox.textContent = "";
-      } else {
-        errorBox.classList.remove("d-none");
-        errorBox.textContent = msg;
-      }
-    }
-
-    async function onChangeImpl() {
-      // Ajusta min de checkout cuando cambias checkin
+    async function onChange() {
       checkout.min = addDaysISO(checkin.value, 1);
-
-      // Si checkout quedó inválido, lo corregimos automáticamente
       if (checkout.value <= checkin.value) {
         checkout.value = addDaysISO(checkin.value, 1);
       }
 
       const err = validateDates(checkin.value, checkout.value);
-      if (err) return showError(err);
-      showError(null);
-
-      // “loading” simple (opcional): podrías poner “Consultando…”
-      try {
-        const motels = await refreshAvailability(checkin.value, checkout.value);
-        renderMotels(motels, checkin.value, checkout.value);
-      } catch (e) {
-        showError(e && e.message ? e.message : "Error consultando disponibilidad.");
+      if (err) {
+        errorBox.classList.remove("d-none");
+        errorBox.textContent = err;
+        return;
       }
-    }
+      errorBox.classList.add("d-none");
 
-    const onChange = debounce(onChangeImpl, 150);
+      const motels = await refreshAvailability(checkin.value, checkout.value);
+      renderMotels(motels, checkin.value, checkout.value);
+    }
 
     checkin.addEventListener("change", onChange);
     checkout.addEventListener("change", onChange);
-
-    onChangeImpl();
+    onChange();
   });
 })();
