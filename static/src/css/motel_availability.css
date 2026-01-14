@@ -1,0 +1,68 @@
+/* =========================================================
+   Motel Availability – UI helpers
+   ========================================================= */
+
+/* Tarjetas seleccionables (Normal / Premium) */
+.room-choice {
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background-color: #fff;
+}
+
+.room-choice:hover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.03);
+}
+
+/* Seleccionada */
+.room-choice.border-primary {
+    border-color: #0d6efd !important;
+    border-width: 2px !important;
+    background-color: rgba(13, 110, 253, 0.06);
+}
+
+/* Sin disponibilidad */
+.room-choice.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+    border-style: dashed;
+}
+
+/* Texto de ayuda bajo Normal/Premium */
+.room-choice-hint {
+    font-size: 0.8rem;
+    color: #0d6efd;
+}
+
+/* Badge de estado */
+[data-status] {
+    font-size: 0.85rem;
+}
+
+/* Precio total resaltado */
+[data-total-normal],
+[data-total-premium] {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* Recargo visible */
+[data-surcharge-normal],
+[data-surcharge-premium] {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Botón Reservar cuando está activo */
+a[data-action-reserve]:not(.disabled) {
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
+}
+
+/* Deshabilitado visualmente */
+a[data-action-reserve].disabled {
+    pointer-events: none;
+    opacity: 0.6;
+}

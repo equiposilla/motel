@@ -1,7 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
   <!-- =========================================================
-       WEBSITE (HU-01 + HU-02 + HU-04)
+       WEBSITE (QWeb) - HU-01 + HU-02 + HU-04
+       Odoo 19: QWeb sigue siendo <template> con t-call website.layout
        ========================================================= -->
 
   <!-- HU-01: Moteles + disponibilidad + selección de tipo + precio calculado -->
@@ -238,8 +240,7 @@
             </div>
 
             <div class="col-12">
-              <button class="btn btn-primary" type="submit"
-                      t-att-disabled="not pricing">
+              <button class="btn btn-primary" type="submit" t-att-disabled="not pricing">
                 Confirmar reserva
               </button>
               <a class="btn btn-secondary ms-2" href="/motels">Volver</a>
@@ -306,15 +307,16 @@
   </template>
 
   <!-- =========================================================
-       BACKEND (vistas para modelos propuestos)
-       - motel.reservation: tree/form + acción + menú
+       BACKEND (Odoo 19)
+       - tree => list
+       - view_mode: list,form
        ========================================================= -->
 
-  <record id="view_motel_reservation_tree" model="ir.ui.view">
-    <field name="name">motel.reservation.tree</field>
+  <record id="view_motel_reservation_list" model="ir.ui.view">
+    <field name="name">motel.reservation.list</field>
     <field name="model">motel.reservation</field>
     <field name="arch" type="xml">
-      <tree string="Reservations">
+      <list string="Reservations">
         <field name="reference"/>
         <field name="state"/>
         <field name="motel_id"/>
@@ -326,7 +328,7 @@
         <field name="final_total"/>
         <field name="partner_id"/>
         <field name="sale_order_id"/>
-      </tree>
+      </list>
     </field>
   </record>
 
@@ -399,7 +401,7 @@
   <record id="action_motel_reservation" model="ir.actions.act_window">
     <field name="name">Reservations</field>
     <field name="res_model">motel.reservation</field>
-    <field name="view_mode">tree,form</field>
+    <field name="view_mode">list,form</field>
     <field name="help" type="html">
       <p class="o_view_nocontent_smiling_face">
         Crea y gestiona reservas de habitaciones.
@@ -407,9 +409,8 @@
     </field>
   </record>
 
-  <!-- Menú simple bajo Website (puedes moverlo a un menú "Motel" si ya existe) -->
+  <!-- Menú simple -->
   <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
-
   <menuitem id="menu_motel_reservation"
             name="Reservations"
             parent="menu_motel_root"

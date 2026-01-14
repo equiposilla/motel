@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <record id="seq_motel_reservation" model="ir.sequence">
+    <field name="name">Motel Reservation</field>
+    <field name="code">motel.reservation</field>
+    <field name="prefix">RES-</field>
+    <field name="padding">6</field>
+    <field name="company_id" eval="False"/>
+  </record>
+</odoo>
