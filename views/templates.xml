@@ -1,5 +1,8 @@
 <odoo>
-    <template id="motels_page" name="Moteles - Disponibilidad">
+  <!-- =========================================================
+       HU-01: Lista de moteles + disponibilidad + selección de tipo
+       ========================================================= -->
+  <template id="motels_page" name="Moteles - Disponibilidad">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_availability_root">
         <h1 class="mb-3">Disponibilidad de Moteles</h1>
@@ -7,15 +10,15 @@
         <!-- Selector de fechas -->
         <div class="row g-2 align-items-end mb-4">
           <div class="col-12 col-md-3">
-            <label class="form-label">Entrada</label>
+            <label class="form-label" for="checkin">Entrada</label>
             <input type="date" class="form-control" id="checkin" t-att-min="today"/>
           </div>
           <div class="col-12 col-md-3">
-            <label class="form-label">Salida</label>
+            <label class="form-label" for="checkout">Salida</label>
             <input type="date" class="form-control" id="checkout" t-att-min="today"/>
           </div>
           <div class="col-12 col-md-6">
-            <div class="alert alert-warning d-none" id="date_error"></div>
+            <div class="alert alert-warning d-none" id="date_error" role="alert"></div>
           </div>
         </div>
 
@@ -28,15 +31,26 @@
                   <h5 class="card-title mb-1">
                     <t t-esc="m.name"/>
                   </h5>
-                  <div class="text-muted mb-2">
+
+                  <div class="text-muted mb-3">
                     <t t-esc="m.display_address()"/> ·
                     <span><t t-esc="m.room_total"/> hab.</span>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-2">
+                  <!-- Selección de tipo: Normal -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-2 room-choice"
+                       data-room-choice="normal"
+                       role="button"
+                       tabindex="0"
+                       aria-label="Elegir habitación Normal">
                     <div>
                       <div class="fw-semibold">Normal</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-normal="1">—</span></div>
+                      <div class="text-muted small">
+                        Precio/noche: <span data-price-normal="1">—</span>
+                      </div>
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-normal="1"></span>
+                      </div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-normal="1">—</div>
@@ -44,10 +58,20 @@
                     </div>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-3">
+                  <!-- Selección de tipo: Premium -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-3 room-choice"
+                       data-room-choice="premium"
+                       role="button"
+                       tabindex="0"
+                       aria-label="Elegir habitación Premium">
                     <div>
                       <div class="fw-semibold">Premium</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-premium="1">—</span></div>
+                      <div class="text-muted small">
+                        Precio/noche: <span data-price-premium="1">—</span>
+                      </div>
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-premium="1"></span>
+                      </div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-premium="1">—</div>
@@ -55,27 +79,19 @@
                     </div>
                   </div>
 
+                  <!-- Estado + botón Reservar único -->
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
 
-                    <div class="btn-group" role="group" aria-label="Reservar tipo">
-                      <a class="btn btn-outline-primary disabled"
-                        role="button"
-                        aria-disabled="true"
-                        data-action-reserve-normal="1"
-                        href="#">
-                        Normal
-                      </a>
-                      <a class="btn btn-primary disabled"
-                        role="button"
-                        aria-disabled="true"
-                        data-action-reserve-premium="1"
-                        href="#">
-                        Premium
-                      </a>
-                    </div>
+                    <a class="btn btn-primary disabled"
+                       role="button"
+                       aria-disabled="true"
+                       data-action-reserve="1"
+                       href="#">
+                      Reservar
+                    </a>
                   </div>
-                  
+
                   <input type="hidden" data-motel-id="1" t-att-value="m.id"/>
                 </div>
               </div>
@@ -85,23 +101,27 @@
       </div>
     </t>
   </template>
-  
-  <!-- HU-02: Formulario -->
+
+  <!-- =========================================================
+       HU-02: Formulario público de reserva (sin login)
+       ========================================================= -->
   <template id="reserve_page" name="Reserve Motel">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_reserve_root">
         <h2>Reservar sin cuenta</h2>
 
         <p t-if="motel">
-          <strong>Motel:</strong> <t t-esc="motel.name"/> — <t t-esc="motel.display_address()"/>
+          <strong>Motel:</strong>
+          <t t-esc="motel.name"/> — <t t-esc="motel.display_address()"/>
         </p>
 
         <p class="text-muted">
-          ¿Ya tienes cuenta? <a t-att-href="login_url">Inicia sesión</a> (opcional)
+          ¿Ya tienes cuenta?
+          <a t-att-href="login_url">Inicia sesión</a> (opcional)
         </p>
 
         <t t-if="errors">
-          <div class="alert alert-danger">
+          <div class="alert alert-danger" role="alert">
             <ul class="mb-0">
               <t t-foreach="errors.items()" t-as="e">
                 <li><t t-esc="e[1]"/></li>
@@ -119,35 +139,73 @@
 
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Nombre(s)*</label>
-              <input class="form-control" name="first_name" t-att-value="prefill.get('first') if prefill else ''" required="required"/>
-              <small class="text-danger" t-if="errors and errors.get('first_name')"><t t-esc="errors.get('first_name')"/></small>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Apellidos*</label>
-              <input class="form-control" name="last_name" t-att-value="prefill.get('last') if prefill else ''" required="required"/>
-              <small class="text-danger" t-if="errors and errors.get('last_name')"><t t-esc="errors.get('last_name')"/></small>
+              <label class="form-label" for="first_name">Nombre(s)*</label>
+              <input id="first_name"
+                     class="form-control"
+                     name="first_name"
+                     t-att-value="prefill.get('first') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger"
+                     t-if="errors and errors.get('first_name')">
+                <t t-esc="errors.get('first_name')"/>
+              </small>
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">Email*</label>
-              <input class="form-control" name="email" type="email" t-att-value="prefill.get('email') if prefill else ''" required="required"/>
-              <small class="text-danger" t-if="errors and errors.get('email')"><t t-esc="errors.get('email')"/></small>
+              <label class="form-label" for="last_name">Apellidos*</label>
+              <input id="last_name"
+                     class="form-control"
+                     name="last_name"
+                     t-att-value="prefill.get('last') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger"
+                     t-if="errors and errors.get('last_name')">
+                <t t-esc="errors.get('last_name')"/>
+              </small>
             </div>
+
             <div class="col-md-6">
-              <label class="form-label">Teléfono*</label>
-              <input class="form-control" name="phone" t-att-value="prefill.get('phone') if prefill else ''" required="required"/>
-              <small class="text-danger" t-if="errors and errors.get('phone')"><t t-esc="errors.get('phone')"/></small>
+              <label class="form-label" for="email">Email*</label>
+              <input id="email"
+                     class="form-control"
+                     name="email"
+                     type="email"
+                     t-att-value="prefill.get('email') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger"
+                     t-if="errors and errors.get('email')">
+                <t t-esc="errors.get('email')"/>
+              </small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Teléfono*</label>
+              <input id="phone"
+                     class="form-control"
+                     name="phone"
+                     t-att-value="prefill.get('phone') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger"
+                     t-if="errors and errors.get('phone')">
+                <t t-esc="errors.get('phone')"/>
+              </small>
             </div>
 
             <div class="col-12">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="terms" id="terms" t-att-checked="prefill.get('terms') if prefill else False"/>
+                <input class="form-check-input"
+                       type="checkbox"
+                       name="terms"
+                       id="terms"
+                       t-att-checked="prefill.get('terms') if prefill else False"/>
                 <label class="form-check-label" for="terms">
                   Acepto Términos y Condiciones*
                 </label>
               </div>
-              <small class="text-danger" t-if="errors and errors.get('terms')"><t t-esc="errors.get('terms')"/></small>
+              <small class="text-danger"
+                     t-if="errors and errors.get('terms')">
+                <t t-esc="errors.get('terms')"/>
+              </small>
             </div>
 
             <div class="col-12">
@@ -160,27 +218,35 @@
     </t>
   </template>
 
-  <!-- HU-02: Error -->
+  <!-- =========================================================
+       HU-02: Error
+       ========================================================= -->
   <template id="reserve_error" name="Reserve Error">
     <t t-call="website.layout">
       <div class="container my-5">
-        <div class="alert alert-danger">
-          <h4>No se pudo confirmar</h4>
-          <p><t t-esc="message"/></p>
-          <p class="text-muted mb-0">ID de intento: <strong><t t-esc="attempt_uuid"/></strong></p>
+        <div class="alert alert-danger" role="alert">
+          <h4 class="mb-2">No se pudo confirmar</h4>
+          <p class="mb-2"><t t-esc="message"/></p>
+          <p class="text-muted mb-0">
+            ID de intento: <strong><t t-esc="attempt_uuid"/></strong>
+          </p>
         </div>
         <a class="btn btn-primary" href="/motels">Volver a moteles</a>
       </div>
     </t>
   </template>
 
-  <!-- HU-02: Confirmación -->
+  <!-- =========================================================
+       HU-02: Confirmación
+       ========================================================= -->
   <template id="confirmation_page" name="Reservation Confirmed">
     <t t-call="website.layout">
       <div class="container my-5">
-        <div class="alert alert-success">
-          <h3>Reserva confirmada</h3>
-          <p>Tu folio es: <strong><t t-esc="reservation.reference"/></strong></p>
+        <div class="alert alert-success" role="alert">
+          <h3 class="mb-2">Reserva confirmada</h3>
+          <p class="mb-2">
+            Tu folio es: <strong><t t-esc="reservation.reference"/></strong>
+          </p>
           <p class="mb-0">
             Motel: <strong><t t-esc="reservation.motel_id.name"/></strong> —
             Habitación: <strong><t t-esc="reservation.room_id.name"/></strong><br/>

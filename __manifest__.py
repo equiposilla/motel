@@ -9,12 +9,16 @@
         "security/ir.model.access.csv",
         "views/templates.xml",
     ],
-    "assets": {
-        # Tu /motels usa frontend_minimal normalmente
-        "web.assets_frontend_minimal": [
-            "motel_availability/static/src/js/motel_availability.js",
-        ],
-    },
+"assets": {
+    "web.assets_frontend": [
+        "motel_availability/static/src/js/motel_availability.js",
+        "motel_availability/static/src/css/motel_availability.css",
+    ],
+    "web.assets_frontend_minimal": [
+        "motel_availability/static/src/js/motel_availability.js",
+        "motel_availability/static/src/css/motel_availability.css",
+    ],
+},
     "application": False,
     "license": "LGPL-3",
 }

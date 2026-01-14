@@ -1,0 +1,7 @@
+.room-choice {
+  cursor: pointer;
+}
+
+.room-choice.border-primary {
+  border-width: 2px !important;
+}
