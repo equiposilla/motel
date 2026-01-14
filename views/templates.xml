@@ -1,4 +1,10 @@
 <odoo>
+
+  <!-- =========================================================
+       WEBSITE (HU-01 + HU-02 + HU-04)
+       ========================================================= -->
+
+  <!-- HU-01: Moteles + disponibilidad + selección de tipo + precio calculado -->
   <template id="motels_page" name="Moteles - Disponibilidad">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_availability_root">
@@ -7,15 +13,17 @@
         <!-- Selector de fechas -->
         <div class="row g-2 align-items-end mb-4">
           <div class="col-12 col-md-3">
-            <label class="form-label">Entrada</label>
+            <label class="form-label" for="checkin">Entrada</label>
             <input type="date" class="form-control" id="checkin" t-att-min="today"/>
           </div>
+
           <div class="col-12 col-md-3">
-            <label class="form-label">Salida</label>
+            <label class="form-label" for="checkout">Salida</label>
             <input type="date" class="form-control" id="checkout" t-att-min="today"/>
           </div>
+
           <div class="col-12 col-md-6">
-            <div class="alert alert-warning d-none" id="date_error"></div>
+            <div class="alert alert-warning d-none" id="date_error" role="alert"></div>
           </div>
         </div>
 
@@ -28,15 +36,31 @@
                   <h5 class="card-title mb-1">
                     <t t-esc="m.name"/>
                   </h5>
-                  <div class="text-muted mb-2">
+
+                  <div class="text-muted mb-3">
                     <t t-esc="m.display_address()"/> ·
                     <span><t t-esc="m.room_total"/> hab.</span>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-2">
+                  <!-- Normal -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-2 room-choice"
+                       data-room-choice="normal"
+                       role="button"
+                       tabindex="0"
+                       aria-label="Elegir habitación Normal">
                     <div>
                       <div class="fw-semibold">Normal</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-normal="1">—</span></div>
+                      <div class="text-muted small">
+                        Precio/día: <span data-price-normal="1">—</span>
+                      </div>
+                      <div class="text-muted small">
+                        Total (<span data-nights="1">—</span> noches):
+                        <strong><span data-total-normal="1">—</span></strong>
+                        <span class="ms-1 text-warning d-none" data-surcharge-normal="1">(+50%)</span>
+                      </div>
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-normal="1"></span>
+                      </div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-normal="1">—</div>
@@ -44,10 +68,25 @@
                     </div>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-3">
+                  <!-- Premium -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-3 room-choice"
+                       data-room-choice="premium"
+                       role="button"
+                       tabindex="0"
+                       aria-label="Elegir habitación Premium">
                     <div>
                       <div class="fw-semibold">Premium</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-premium="1">—</span></div>
+                      <div class="text-muted small">
+                        Precio/día: <span data-price-premium="1">—</span>
+                      </div>
+                      <div class="text-muted small">
+                        Total (<span data-nights="1">—</span> noches):
+                        <strong><span data-total-premium="1">—</span></strong>
+                        <span class="ms-1 text-warning d-none" data-surcharge-premium="1">(+50%)</span>
+                      </div>
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-premium="1"></span>
+                      </div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-premium="1">—</div>
@@ -55,12 +94,17 @@
                     </div>
                   </div>
 
+                  <!-- Estado + botón Reservar (único) -->
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
-                    <!-- No se implementa reserva (fuera de alcance) -->
-                    <button class="btn btn-primary" data-action-reserve="1" disabled="disabled">
+
+                    <a class="btn btn-primary disabled"
+                       role="button"
+                       aria-disabled="true"
+                       data-action-reserve="1"
+                       href="#">
                       Reservar
-                    </button>
+                    </a>
                   </div>
 
                   <input type="hidden" data-motel-id="1" t-att-value="m.id"/>
@@ -72,4 +116,304 @@
       </div>
     </t>
   </template>
+
+  <!-- HU-02: Formulario público de reserva (muestra precio calculado antes de confirmar) -->
+  <template id="reserve_page" name="Reserve Motel">
+    <t t-call="website.layout">
+      <div class="container my-4" id="motel_reserve_root">
+        <h2>Reservar sin cuenta</h2>
+
+        <p t-if="motel">
+          <strong>Motel:</strong> <t t-esc="motel.name"/> — <t t-esc="motel.display_address()"/>
+        </p>
+
+        <p class="text-muted mb-2">
+          Fechas: <strong><t t-esc="checkin"/></strong> → <strong><t t-esc="checkout"/></strong>
+        </p>
+
+        <!-- HU-04: Resumen de precio antes de confirmar -->
+        <t t-if="pricing">
+          <div class="alert alert-info mt-3" role="alert">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <span><strong>Tipo:</strong> <t t-esc="pricing.get('room_type')"/></span>
+              <span><strong>Noches:</strong> <t t-esc="pricing.get('nights')"/></span>
+            </div>
+
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <span><strong>Precio base/día:</strong> $<t t-esc="pricing.get('base_per_day')"/></span>
+              <span><strong>Base total:</strong> $<t t-esc="pricing.get('base_total')"/></span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span>
+                <strong>Recargo estancia larga:</strong>
+                <t t-esc="'Sí (+50%)' if pricing.get('surcharge_applied') else 'No'"/>
+              </span>
+              <span class="fs-5">
+                <strong>Total:</strong> $<t t-esc="pricing.get('final_total')"/>
+              </span>
+            </div>
+          </div>
+        </t>
+        <t t-else="">
+          <div class="alert alert-warning mt-3" role="alert">
+            No se pudo calcular el precio. Verifica fechas y tipo de habitación.
+          </div>
+        </t>
+
+        <p class="text-muted">
+          ¿Ya tienes cuenta? <a t-att-href="login_url">Inicia sesión</a> (opcional)
+        </p>
+
+        <t t-if="errors">
+          <div class="alert alert-danger" role="alert">
+            <ul class="mb-0">
+              <t t-foreach="errors.items()" t-as="e">
+                <li><t t-esc="e[1]"/></li>
+              </t>
+            </ul>
+          </div>
+        </t>
+
+        <form action="/motels/confirm" method="post" class="mt-3">
+          <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+          <input type="hidden" name="motel_id" t-att-value="motel.id if motel else ''"/>
+          <input type="hidden" name="room_type" t-att-value="room_type"/>
+          <input type="hidden" name="checkin" t-att-value="checkin"/>
+          <input type="hidden" name="checkout" t-att-value="checkout"/>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="first_name">Nombre(s)*</label>
+              <input id="first_name" class="form-control" name="first_name"
+                     t-att-value="prefill.get('first') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger" t-if="errors and errors.get('first_name')">
+                <t t-esc="errors.get('first_name')"/>
+              </small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="last_name">Apellidos*</label>
+              <input id="last_name" class="form-control" name="last_name"
+                     t-att-value="prefill.get('last') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger" t-if="errors and errors.get('last_name')">
+                <t t-esc="errors.get('last_name')"/>
+              </small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="email">Email*</label>
+              <input id="email" class="form-control" name="email" type="email"
+                     t-att-value="prefill.get('email') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger" t-if="errors and errors.get('email')">
+                <t t-esc="errors.get('email')"/>
+              </small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Teléfono*</label>
+              <input id="phone" class="form-control" name="phone"
+                     t-att-value="prefill.get('phone') if prefill else ''"
+                     required="required"/>
+              <small class="text-danger" t-if="errors and errors.get('phone')">
+                <t t-esc="errors.get('phone')"/>
+              </small>
+            </div>
+
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="terms" id="terms"
+                       t-att-checked="prefill.get('terms') if prefill else False"/>
+                <label class="form-check-label" for="terms">
+                  Acepto Términos y Condiciones*
+                </label>
+              </div>
+              <small class="text-danger" t-if="errors and errors.get('terms')">
+                <t t-esc="errors.get('terms')"/>
+              </small>
+            </div>
+
+            <div class="col-12">
+              <button class="btn btn-primary" type="submit"
+                      t-att-disabled="not pricing">
+                Confirmar reserva
+              </button>
+              <a class="btn btn-secondary ms-2" href="/motels">Volver</a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </t>
+  </template>
+
+  <!-- HU-02: Error -->
+  <template id="reserve_error" name="Reserve Error">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-danger" role="alert">
+          <h4 class="mb-2">No se pudo confirmar</h4>
+          <p class="mb-2"><t t-esc="message"/></p>
+          <p class="text-muted mb-0">
+            ID de intento: <strong><t t-esc="attempt_uuid"/></strong>
+          </p>
+        </div>
+        <a class="btn btn-primary" href="/motels">Volver a moteles</a>
+      </div>
+    </t>
+  </template>
+
+  <!-- HU-02: Confirmación -->
+  <template id="confirmation_page" name="Reservation Confirmed">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-success" role="alert">
+          <h3 class="mb-2">Reserva confirmada</h3>
+          <p class="mb-2">Tu folio es: <strong><t t-esc="reservation.reference"/></strong></p>
+
+          <p class="mb-2">
+            Motel: <strong><t t-esc="reservation.motel_id.name"/></strong> —
+            Habitación: <strong><t t-esc="reservation.room_id.name"/></strong><br/>
+            Fechas: <t t-esc="reservation.checkin_date"/> → <t t-esc="reservation.checkout_date"/>
+          </p>
+
+          <!-- HU-04: resumen guardado (auditoría) -->
+          <div class="border-top pt-3 mt-3">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <span><strong>Tipo:</strong> <t t-esc="reservation.room_type_code"/></span>
+              <span><strong>Noches:</strong> <t t-esc="reservation.nights"/></span>
+            </div>
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <span><strong>Base/día:</strong> $<t t-esc="reservation.base_price_per_day"/></span>
+              <span><strong>Base total:</strong> $<t t-esc="reservation.base_total"/></span>
+            </div>
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <span>
+                <strong>Recargo:</strong>
+                <t t-esc="'Sí (+50%)' if reservation.surcharge_applied else 'No'"/>
+              </span>
+              <span class="fs-5"><strong>Total:</strong> $<t t-esc="reservation.final_total"/></span>
+            </div>
+          </div>
+        </div>
+
+        <a class="btn btn-primary" href="/motels">Volver a moteles</a>
+      </div>
+    </t>
+  </template>
+
+  <!-- =========================================================
+       BACKEND (vistas para modelos propuestos)
+       - motel.reservation: tree/form + acción + menú
+       ========================================================= -->
+
+  <record id="view_motel_reservation_tree" model="ir.ui.view">
+    <field name="name">motel.reservation.tree</field>
+    <field name="model">motel.reservation</field>
+    <field name="arch" type="xml">
+      <tree string="Reservations">
+        <field name="reference"/>
+        <field name="state"/>
+        <field name="motel_id"/>
+        <field name="room_id"/>
+        <field name="room_type_code"/>
+        <field name="checkin_date"/>
+        <field name="checkout_date"/>
+        <field name="nights"/>
+        <field name="final_total"/>
+        <field name="partner_id"/>
+        <field name="sale_order_id"/>
+      </tree>
+    </field>
+  </record>
+
+  <record id="view_motel_reservation_form" model="ir.ui.view">
+    <field name="name">motel.reservation.form</field>
+    <field name="model">motel.reservation</field>
+    <field name="arch" type="xml">
+      <form string="Reservation">
+        <sheet>
+          <header>
+            <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+          </header>
+
+          <group>
+            <group>
+              <field name="reference" readonly="1"/>
+              <field name="attempt_uuid" readonly="1"/>
+              <field name="motel_id" readonly="1"/>
+              <field name="room_id"/>
+              <field name="room_type_code"/>
+            </group>
+            <group>
+              <field name="checkin_date"/>
+              <field name="checkout_date"/>
+              <field name="nights" readonly="1"/>
+              <field name="currency_id" groups="base.group_system"/>
+            </group>
+          </group>
+
+          <notebook>
+            <page string="Guest">
+              <group>
+                <group>
+                  <field name="partner_id"/>
+                  <field name="guest_first_name"/>
+                  <field name="guest_last_name"/>
+                </group>
+                <group>
+                  <field name="guest_email"/>
+                  <field name="guest_phone"/>
+                  <field name="terms_accepted"/>
+                </group>
+              </group>
+            </page>
+
+            <page string="Pricing (HU-04)">
+              <group>
+                <group>
+                  <field name="base_price_per_day" readonly="1"/>
+                  <field name="base_total" readonly="1"/>
+                </group>
+                <group>
+                  <field name="surcharge_applied" readonly="1"/>
+                  <field name="final_total" readonly="1"/>
+                </group>
+              </group>
+            </page>
+
+            <page string="Sales">
+              <group>
+                <field name="sale_order_id"/>
+              </group>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_motel_reservation" model="ir.actions.act_window">
+    <field name="name">Reservations</field>
+    <field name="res_model">motel.reservation</field>
+    <field name="view_mode">tree,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">
+        Crea y gestiona reservas de habitaciones.
+      </p>
+    </field>
+  </record>
+
+  <!-- Menú simple bajo Website (puedes moverlo a un menú "Motel" si ya existe) -->
+  <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
+
+  <menuitem id="menu_motel_reservation"
+            name="Reservations"
+            parent="menu_motel_root"
+            action="action_motel_reservation"
+            sequence="10"/>
+
 </odoo>
