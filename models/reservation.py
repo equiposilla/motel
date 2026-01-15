@@ -195,20 +195,4 @@ class MotelReservation(models.Model):
         for vals in vals_list:
             if vals.get("reference", "New") == "New":
                 vals["reference"] = self.env["ir.sequence"].next_by_code("motel.reservation") or "RES"
-        records = super().create(vals_list)
-        # compute store ya se encargará, pero forzamos recompute por robustez
-        records._recompute_pricing_if_needed()
-        return records
-
-    def write(self, vals):
-        res = super().write(vals)
-        self._recompute_pricing_if_needed()
-        return res
-
-    def _recompute_pricing_if_needed(self):
-        """
-        Defensa extra: si cambiaron fechas o tipo por write() masivo,
-        aseguramos consistencia HU-04.
-        """
-        for rec in self:
-            rec._compute_pricing()
+        return super().create(vals_list)
