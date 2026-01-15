@@ -74,6 +74,16 @@
   }
 
   // -------------------------
+  // Global state (CRÍTICO: evita closures con datos viejos)
+  // -------------------------
+  const STATE = {
+    byMotelId: Object.create(null), // { [motelId]: payload }
+    boundCards: new WeakSet(),      // para no re-binder eventos
+    checkinEl: null,
+    checkoutEl: null,
+  };
+
+  // -------------------------
   // Reserve link helpers
   // -------------------------
   function setReserveLink(btn, motelId, roomType, checkin, checkout) {
@@ -111,15 +121,11 @@
     const normal = qs('[data-room-choice="normal"]', card);
     const premium = qs('[data-room-choice="premium"]', card);
 
-    if (normal) {
-      normal.classList.remove("border-primary", "bg-light");
-    }
-    if (premium) {
-      premium.classList.remove("border-primary", "bg-light");
-    }
+    if (normal) normal.classList.remove("border-primary", "bg-light", "border-2");
+    if (premium) premium.classList.remove("border-primary", "bg-light", "border-2");
 
     const el = type === "premium" ? premium : normal;
-    if (el) el.classList.add("border-primary", "bg-light");
+    if (el) el.classList.add("border-primary", "bg-light", "border-2");
 
     const hintNormal = qs("[data-hint-normal]", card);
     const hintPremium = qs("[data-hint-premium]", card);
@@ -135,44 +141,171 @@
     return "normal";
   }
 
-  function updateReserveButton(card, motelId, m, checkinValue, checkoutValue) {
+  // -------------------------
+  // IMPORTANT: siempre tomar fechas ACTUALES del DOM
+  // -------------------------
+  function getCurrentDates() {
+    const checkinValue = STATE.checkinEl ? STATE.checkinEl.value : "";
+    const checkoutValue = STATE.checkoutEl ? STATE.checkoutEl.value : "";
+    return { checkinValue, checkoutValue };
+  }
+
+  function updateReserveButton(card, motelId) {
     const btn = qs("[data-action-reserve]", card);
     if (!btn) return;
 
+    const m = STATE.byMotelId[motelId];
+    if (!m) {
+      disableLink(btn);
+      btn.textContent = "Reservar";
+      return;
+    }
+
     const selected = getSelectedType(card) || "normal";
-    const availNormal = (m.normal && m.normal.available) || 0;
-    const availPremium = (m.premium && m.premium.available) || 0;
+    const { checkinValue, checkoutValue } = getCurrentDates();
 
-    const nights = m.nights || 0;
+    // Si las fechas están mal, no permitir reservar
+    const err = validateDates(checkinValue, checkoutValue);
+    if (err) {
+      disableLink(btn);
+      btn.textContent = "Reservar";
+      return;
+    }
 
-    // Precios HU-04 vienen del backend:
-    // normal: { price_per_day, final_total, surcharge }
     const selectedBucket = selected === "premium" ? m.premium : m.normal;
-    const canReserve = selected === "premium" ? availPremium > 0 : availNormal > 0;
+    const available = Number((selectedBucket && selectedBucket.available) || 0);
 
-    // Texto del botón con total calculado
+    // Texto del botón con total calculado (backend)
     const typeLabel = selected === "premium" ? "Premium" : "Normal";
-    const total = selectedBucket ? selectedBucket.final_total : 0;
+    const total = Number((selectedBucket && selectedBucket.final_total) || 0);
     btn.textContent = `Reservar (${typeLabel}) - ${formatMoney(total)}`;
 
-    if (canReserve) {
+    if (available > 0) {
       setReserveLink(btn, motelId, selected, checkinValue, checkoutValue);
       enableLink(btn);
     } else {
       disableLink(btn);
     }
 
-    // Marcar selección
     markSelected(card, selected);
 
-    // Si quieres reflejar noches en el UI (si tienes data-nights en template)
-    qsa("[data-nights]", card).forEach((el) => (el.textContent = String(nights)));
+    // Reflejar noches en el UI con el valor del backend
+    qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
   }
 
   // -------------------------
   // Render
   // -------------------------
-  function renderMotels(motels, checkinValue, checkoutValue) {
+  function renderCard(card, m) {
+    const motelInput = qs("input[data-motel-id]", card);
+    if (!motelInput) return;
+
+    const motelId = Number(motelInput.value);
+    if (!motelId) return;
+
+    // Guardar el payload más reciente (clave anti-bug)
+    STATE.byMotelId[motelId] = m;
+
+    // Pintar precios/disp (payload nuevo)
+    const priceNormal = qs("[data-price-normal]", card);
+    const pricePremium = qs("[data-price-premium]", card);
+    const availNormal = qs("[data-available-normal]", card);
+    const availPremium = qs("[data-available-premium]", card);
+
+    if (priceNormal) priceNormal.textContent = formatMoney(m.normal && m.normal.price_per_day);
+    if (pricePremium) pricePremium.textContent = formatMoney(m.premium && m.premium.price_per_day);
+    if (availNormal) availNormal.textContent = String((m.normal && m.normal.available) || 0);
+    if (availPremium) availPremium.textContent = String((m.premium && m.premium.available) || 0);
+
+    // Totales
+    const totalNormal = qs("[data-total-normal]", card);
+    const totalPremium = qs("[data-total-premium]", card);
+    if (totalNormal) totalNormal.textContent = formatMoney(m.normal && m.normal.final_total);
+    if (totalPremium) totalPremium.textContent = formatMoney(m.premium && m.premium.final_total);
+
+    // Recargo
+    const surN = qs("[data-surcharge-normal]", card);
+    const surP = qs("[data-surcharge-premium]", card);
+    if (surN) surN.classList.toggle("d-none", !(m.normal && m.normal.surcharge));
+    if (surP) surP.classList.toggle("d-none", !(m.premium && m.premium.surcharge));
+
+    // Noches
+    qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
+
+    // Status
+    const status = qs("[data-status]", card);
+    if (status) {
+      if (!m.has_availability) {
+        status.textContent = "Sin disponibilidad";
+        status.className = "badge bg-danger";
+      } else {
+        const parts = [];
+        if (m.normal && m.normal.available > 0) parts.push("Normal");
+        if (m.premium && m.premium.available > 0) parts.push("Premium");
+        status.textContent = "Disponible: " + (parts.length ? parts.join(" / ") : "—");
+        status.className = "badge bg-success";
+      }
+    }
+
+    // Selección por defecto
+    if (m.has_availability) {
+      const sel = defaultSelectionForCard(card, m);
+      setSelectedType(card, sel);
+      markSelected(card, sel);
+    } else {
+      // No hay disponibilidad
+      const btn = qs("[data-action-reserve]", card);
+      if (btn) {
+        btn.textContent = "Reservar";
+        disableLink(btn);
+      }
+      markSelected(card, "normal");
+      return;
+    }
+
+    // Actualiza botón en base a selección actual + fechas actuales
+    updateReserveButton(card, motelId);
+
+    // Bind eventos SOLO una vez (sin closures con m/checkin/checkout)
+    bindCardEventsOnce(card, motelId);
+  }
+
+  function bindCardEventsOnce(card, motelId) {
+    if (STATE.boundCards.has(card)) return;
+    STATE.boundCards.add(card);
+
+    const rowNormal = qs('[data-room-choice="normal"]', card);
+    const rowPremium = qs('[data-room-choice="premium"]', card);
+
+    const onSelect = (type) => {
+      setSelectedType(card, type);
+      markSelected(card, type);
+      // ✅ CRÍTICO: NO usar "m" de closure. Tomar el payload más reciente + fechas actuales.
+      updateReserveButton(card, motelId);
+    };
+
+    if (rowNormal) {
+      rowNormal.addEventListener("click", () => onSelect("normal"));
+      rowNormal.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          onSelect("normal");
+        }
+      });
+    }
+
+    if (rowPremium) {
+      rowPremium.addEventListener("click", () => onSelect("premium"));
+      rowPremium.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          onSelect("premium");
+        }
+      });
+    }
+  }
+
+  function renderMotels(motels) {
     qsa("#motels_grid .card").forEach((card) => {
       const motelInput = qs("input[data-motel-id]", card);
       if (!motelInput) return;
@@ -181,103 +314,7 @@
       const m = motels.find((x) => x.id === motelId);
       if (!m) return;
 
-      // Pintar precios/disp (según el payload nuevo del backend)
-      const priceNormal = qs("[data-price-normal]", card);
-      const pricePremium = qs("[data-price-premium]", card);
-      const availNormal = qs("[data-available-normal]", card);
-      const availPremium = qs("[data-available-premium]", card);
-
-      if (priceNormal) priceNormal.textContent = formatMoney(m.normal && m.normal.price_per_day);
-      if (pricePremium) pricePremium.textContent = formatMoney(m.premium && m.premium.price_per_day);
-      if (availNormal) availNormal.textContent = String((m.normal && m.normal.available) || 0);
-      if (availPremium) availPremium.textContent = String((m.premium && m.premium.available) || 0);
-
-      // Totales (si los agregaste al template con data-total-*)
-      const totalNormal = qs("[data-total-normal]", card);
-      const totalPremium = qs("[data-total-premium]", card);
-      if (totalNormal) totalNormal.textContent = formatMoney(m.normal && m.normal.final_total);
-      if (totalPremium) totalPremium.textContent = formatMoney(m.premium && m.premium.final_total);
-
-      // Recargo (si agregaste data-surcharge-*)
-      const surN = qs("[data-surcharge-normal]", card);
-      const surP = qs("[data-surcharge-premium]", card);
-      if (surN) surN.classList.toggle("d-none", !(m.normal && m.normal.surcharge));
-      if (surP) surP.classList.toggle("d-none", !(m.premium && m.premium.surcharge));
-
-      // Noches (si agregaste data-nights)
-      qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
-
-      // Status
-      const status = qs("[data-status]", card);
-      if (status) {
-        if (!m.has_availability) {
-          status.textContent = "Sin disponibilidad";
-          status.className = "badge bg-danger";
-        } else {
-          const parts = [];
-          if (m.normal && m.normal.available > 0) parts.push("Normal");
-          if (m.premium && m.premium.available > 0) parts.push("Premium");
-          status.textContent = "Disponible: " + (parts.length ? parts.join(" / ") : "—");
-          status.className = "badge bg-success";
-        }
-      }
-
-      // Si no hay disponibilidad, deshabilita Reservar y listo
-      if (!m.has_availability) {
-        const btn = qs("[data-action-reserve]", card);
-        if (btn) {
-          btn.textContent = "Reservar";
-          disableLink(btn);
-        }
-        // Limpia hints y estilos
-        const hintNormal = qs("[data-hint-normal]", card);
-        const hintPremium = qs("[data-hint-premium]", card);
-        if (hintNormal) hintNormal.textContent = "";
-        if (hintPremium) hintPremium.textContent = "";
-        markSelected(card, "normal");
-        return;
-      }
-
-      // Default de selección (si nunca se eligió)
-      const sel = defaultSelectionForCard(card, m);
-      setSelectedType(card, sel);
-
-      // Bind eventos de selección (una sola vez)
-      const rowNormal = qs('[data-room-choice="normal"]', card);
-      const rowPremium = qs('[data-room-choice="premium"]', card);
-
-      if (rowNormal && !rowNormal._bound) {
-        rowNormal._bound = true;
-        const handler = () => {
-          setSelectedType(card, "normal");
-          updateReserveButton(card, motelId, m, checkinValue, checkoutValue);
-        };
-        rowNormal.addEventListener("click", handler);
-        rowNormal.addEventListener("keydown", (ev) => {
-          if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            handler();
-          }
-        });
-      }
-
-      if (rowPremium && !rowPremium._bound) {
-        rowPremium._bound = true;
-        const handler = () => {
-          setSelectedType(card, "premium");
-          updateReserveButton(card, motelId, m, checkinValue, checkoutValue);
-        };
-        rowPremium.addEventListener("click", handler);
-        rowPremium.addEventListener("keydown", (ev) => {
-          if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            handler();
-          }
-        });
-      }
-
-      // Actualiza el botón según selección y fechas
-      updateReserveButton(card, motelId, m, checkinValue, checkoutValue);
+      renderCard(card, m);
     });
   }
 
@@ -292,6 +329,10 @@
     const checkout = qs("#checkout");
     const errorBox = qs("#date_error");
     if (!checkin || !checkout || !errorBox) return;
+
+    // Guardar refs globales (para leer fechas actuales en clicks)
+    STATE.checkinEl = checkin;
+    STATE.checkoutEl = checkout;
 
     const t = todayLocalISO();
 
@@ -324,13 +365,27 @@
       const err = validateDates(checkin.value, checkout.value);
       if (err) {
         showError(err);
+        // Además, deshabilita los botones (fechas inválidas)
+        qsa("#motels_grid .card").forEach((card) => {
+          const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
+          if (motelId) updateReserveButton(card, motelId);
+        });
         return;
       }
+
       showError(null);
 
       try {
         const motels = await refreshAvailability(checkin.value, checkout.value);
-        renderMotels(motels, checkin.value, checkout.value);
+
+        // Render general (esto actualiza STATE.byMotelId con payload NUEVO)
+        renderMotels(motels);
+
+        // Por si el usuario ya tenía una selección previa, re-evaluar botón con fechas actuales
+        qsa("#motels_grid .card").forEach((card) => {
+          const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
+          if (motelId) updateReserveButton(card, motelId);
+        });
       } catch (e) {
         showError((e && e.message) || "Error consultando disponibilidad.");
       }

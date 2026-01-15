@@ -1,39 +1,41 @@
 # controllers/main.py
 import json
+import logging
+import re
+import uuid
 from datetime import timedelta
 
 from odoo import http, fields
 from odoo.http import request
 
+_logger = logging.getLogger(__name__)
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+PHONE_RE = re.compile(r"^[0-9+\-\s().]{7,20}$")
+
 
 class MotelAvailabilityController(http.Controller):
     """
     HU-01:
-    - /motels: página pública (Website)
-    - /motels/availability: JSON-RPC (type="json")
-    - /motels/availability_http: HTTP GET JSON (para fetch desde website)
+      - /motels (website)
+      - /motels/availability_http (HTTP GET JSON para fetch)
+      - /motels/availability (JSON-RPC opcional)
+
+    HU-02:
+      - /motels/reserve (GET)
+      - /motels/confirm (POST)
+      - /motels/confirmation/<reference> (GET)
 
     HU-04:
-    - Precios base: normal=100, premium=200
-    - Estancias >= 6 noches => +50% sobre total base
-    - El backend es la fuente única del cálculo (UI solo muestra lo que recibe)
+      - normal: 100/día
+      - premium: 200/día
+      - >= 6 noches => +50% sobre total base
+      - backend única fuente
     """
 
-    # ----------------------------
-    # HU-04 Pricing rules (fuente única)
-    # ----------------------------
     PRICE_PER_DAY = {"normal": 100.0, "premium": 200.0}
     LONG_STAY_MIN_DAYS = 6
     LONG_STAY_MULTIPLIER = 1.5
-
-    # ----------------------------
-    # Página HU-01
-    # ----------------------------
-    @http.route("/motels", type="http", auth="public", website=True, sitemap=True)
-    def motels_page(self, **kw):
-        motels = request.env["motel.motel"].sudo().search([], order="id asc", limit=4)
-        today = fields.Date.to_string(fields.Date.context_today(request.env.user))
-        return request.render("motel_availability.motels_page", {"motels": motels, "today": today})
 
     # ----------------------------
     # Helpers
@@ -53,24 +55,7 @@ class MotelAvailabilityController(http.Controller):
             return None, None, "No se permiten fechas en el pasado."
         return d_in, d_out, None
 
-    def _get_room_types(self):
-        """
-        Para HU-01: solo normal/premium (si existen).
-        Fallback a todos para no romper instalaciones incompletas.
-        """
-        RoomType = request.env["motel.room.type"].sudo()
-        rtypes = RoomType.search([("code", "in", ("normal", "premium"))])
-        return rtypes or RoomType.search([])
-
     def _compute_price(self, room_type_code, d_in, d_out):
-        """
-        HU-04:
-        - normal: 100/día
-        - premium: 200/día
-        - >=6 noches => total * 1.5
-
-        Retorna (pricing_dict, error_msg)
-        """
         if room_type_code not in ("normal", "premium"):
             return None, "Tipo de habitación inválido."
 
@@ -92,6 +77,11 @@ class MotelAvailabilityController(http.Controller):
             "final_total": final_total,
         }, None
 
+    def _get_room_types(self):
+        RoomType = request.env["motel.room.type"].sudo()
+        rtypes = RoomType.search([("code", "in", ("normal", "premium"))])
+        return rtypes or RoomType.search([])
+
     def _compute_availability_payload(self, d_in, d_out):
         Motel = request.env["motel.motel"].sudo()
         Room = request.env["motel.room"].sudo()
@@ -99,22 +89,22 @@ class MotelAvailabilityController(http.Controller):
 
         motels = Motel.search([], order="id asc", limit=4)
         rtypes = self._get_room_types()
-
         nights = (d_out - d_in).days
 
-        # Totales por motel y tipo
+        # totales por motel y tipo
         totals = Room.read_group(
             domain=[("motel_id", "in", motels.ids), ("active", "=", True)],
             fields=["motel_id", "room_type_id"],
             groupby=["motel_id", "room_type_id"],
             lazy=False,
         )
-        total_map = {}
-        for r in totals:
-            if r.get("motel_id") and r.get("room_type_id"):
-                total_map[(r["motel_id"][0], r["room_type_id"][0])] = r["__count"]
+        total_map = {
+            (r["motel_id"][0], r["room_type_id"][0]): r["__count"]
+            for r in totals
+            if r.get("motel_id") and r.get("room_type_id")
+        }
 
-        # Habitaciones ocupadas por traslape (solo confirmed)
+        # ocupadas por traslape (confirmed)
         occupied = Res.read_group(
             domain=[
                 ("state", "=", "confirmed"),
@@ -128,7 +118,6 @@ class MotelAvailabilityController(http.Controller):
         )
         occupied_room_ids = [r["room_id"][0] for r in occupied if r.get("room_id")]
 
-        # Ocupación por tipo
         occ_by_type = {}
         if occupied_room_ids:
             occ2 = Room.read_group(
@@ -137,14 +126,15 @@ class MotelAvailabilityController(http.Controller):
                 groupby=["motel_id", "room_type_id"],
                 lazy=False,
             )
-            for r in occ2:
-                if r.get("motel_id") and r.get("room_type_id"):
-                    occ_by_type[(r["motel_id"][0], r["room_type_id"][0])] = r["__count"]
+            occ_by_type = {
+                (r["motel_id"][0], r["room_type_id"][0]): r["__count"]
+                for r in occ2
+                if r.get("motel_id") and r.get("room_type_id")
+            }
 
-        # Map de códigos por type-id (para asignar avail a normal/premium)
         code_by_type = {rt.id: (rt.code or "").strip() for rt in rtypes}
 
-        # Precios calculados HU-04 (por fechas)
+        # precios HU-04 por fechas
         normal_pr, _ = self._compute_price("normal", d_in, d_out)
         premium_pr, _ = self._compute_price("premium", d_in, d_out)
 
@@ -174,42 +164,32 @@ class MotelAvailabilityController(http.Controller):
                 elif code == "premium":
                     premium["available"] = avail
 
-            payload.append(
-                {
-                    "id": m.id,
-                    "name": m.name,
-                    "location": m.display_address(),
-                    "room_total": m.room_total,
-                    "nights": nights,
-                    "normal": normal,
-                    "premium": premium,
-                    "has_availability": (normal["available"] + premium["available"]) > 0,
-                }
-            )
+            payload.append({
+                "id": m.id,
+                "name": m.name,
+                "location": m.display_address(),
+                "room_total": m.room_total,
+                "nights": nights,
+                "normal": normal,
+                "premium": premium,
+                "has_availability": (normal["available"] + premium["available"]) > 0,
+            })
 
         return payload
 
     # ----------------------------
-    # JSON-RPC (type="json")
+    # HU-01: página
     # ----------------------------
-    @http.route("/motels/availability", type="json", auth="public", website=True)
-    def motels_availability(self, checkin, checkout):
-        d_in, d_out, err = self._validate_dates(checkin, checkout)
-        if err:
-            return {"error": err}
-        return {"motels": self._compute_availability_payload(d_in, d_out)}
+    @http.route("/motels", type="http", auth="public", website=True, sitemap=True)
+    def motels_page(self, **kw):
+        motels = request.env["motel.motel"].sudo().search([], order="id asc", limit=4)
+        today = fields.Date.to_string(self._today())
+        return request.render("motel_availability.motels_page", {"motels": motels, "today": today})
 
     # ----------------------------
-    # HTTP JSON (Website + fetch)
+    # HU-01: endpoint fetch JSON
     # ----------------------------
-    @http.route(
-        "/motels/availability_http",
-        type="http",
-        auth="public",
-        methods=["GET"],
-        csrf=False,
-        website=True,
-    )
+    @http.route("/motels/availability_http", type="http", auth="public", methods=["GET"], csrf=False, website=True)
     def motels_availability_http(self, checkin=None, checkout=None, **kw):
         d_in, d_out, err = self._validate_dates(checkin, checkout)
         if err:
@@ -218,10 +198,183 @@ class MotelAvailabilityController(http.Controller):
                 headers=[("Content-Type", "application/json")],
                 status=400,
             )
-
-        payload = self._compute_availability_payload(d_in, d_out)
         return request.make_response(
-            json.dumps({"motels": payload}),
+            json.dumps({"motels": self._compute_availability_payload(d_in, d_out)}),
             headers=[("Content-Type", "application/json")],
             status=200,
         )
+
+    # (opcional) JSON-RPC
+    @http.route("/motels/availability", type="json", auth="public", website=True)
+    def motels_availability(self, checkin, checkout):
+        d_in, d_out, err = self._validate_dates(checkin, checkout)
+        if err:
+            return {"error": err}
+        return {"motels": self._compute_availability_payload(d_in, d_out)}
+
+    # ==========================================================
+    # HU-02: /motels/reserve (GET)
+    # ==========================================================
+    @http.route("/motels/reserve", type="http", auth="public", website=True, sitemap=False)
+    def reserve_page(self, motel_id=None, room_type=None, checkin=None, checkout=None, **kw):
+        Motel = request.env["motel.motel"].sudo()
+
+        motel = Motel.browse(int(motel_id)) if motel_id and str(motel_id).isdigit() else Motel.browse([])
+        if motel_id and (not motel or not motel.exists()):
+            return request.not_found()
+
+        today = self._today()
+        checkin = checkin or fields.Date.to_string(today)
+        checkout = checkout or fields.Date.to_string(today + timedelta(days=1))
+        room_type = (room_type or "").strip()
+
+        d_in, d_out, err = self._validate_dates(checkin, checkout)
+        pricing = None
+        if not err:
+            pricing, _ = self._compute_price(room_type, d_in, d_out)
+
+        return request.render("motel_availability.reserve_page", {
+            "motel": motel,
+            "room_type": room_type,
+            "checkin": checkin,
+            "checkout": checkout,
+            "pricing": pricing,
+            "login_url": "/web/login",
+            "errors": {},
+            "prefill": {},
+        })
+
+    # ----------------------------
+    # helpers HU-02 (inventario)
+    # ----------------------------
+    def _find_available_room(self, motel_id, room_type_code, d_in, d_out):
+        RoomType = request.env["motel.room.type"].sudo()
+        Room = request.env["motel.room"].sudo()
+        Res = request.env["motel.reservation"].sudo()
+
+        rt = RoomType.search([("code", "=", room_type_code)], limit=1)
+        if not rt:
+            return None
+
+        rooms = Room.search([
+            ("motel_id", "=", motel_id),
+            ("room_type_id", "=", rt.id),
+            ("active", "=", True),
+        ], order="id asc")
+        if not rooms:
+            return None
+
+        occupied = Res.search([
+            ("state", "=", "confirmed"),
+            ("room_id", "in", rooms.ids),
+            ("checkin_date", "<", d_out),
+            ("checkout_date", ">", d_in),
+        ]).mapped("room_id")
+
+        free_rooms = rooms - occupied
+        return free_rooms[:1] if free_rooms else None
+
+    # ==========================================================
+    # HU-02: /motels/confirm (POST)
+    # ==========================================================
+    @http.route("/motels/confirm", type="http", auth="public", website=True, methods=["POST"], csrf=True)
+    def confirm_reservation(self, **post):
+        attempt_uuid = f"ATT-{uuid.uuid4().hex[:10].upper()}"
+
+        first = (post.get("first_name") or "").strip()
+        last = (post.get("last_name") or "").strip()
+        email = (post.get("email") or "").strip().lower()
+        phone = (post.get("phone") or "").strip()
+        terms = post.get("terms") == "on"
+
+        motel_id = (post.get("motel_id") or "").strip()
+        room_type = (post.get("room_type") or "").strip()
+        checkin = (post.get("checkin") or "").strip()
+        checkout = (post.get("checkout") or "").strip()
+
+        errors = {}
+        if not first:
+            errors["first_name"] = "Nombre(s) es obligatorio."
+        if not last:
+            errors["last_name"] = "Apellidos es obligatorio."
+        if not email or not EMAIL_RE.match(email):
+            errors["email"] = "Email inválido."
+        if not phone or not PHONE_RE.match(phone):
+            errors["phone"] = "Teléfono inválido."
+        if not terms:
+            errors["terms"] = "Debes aceptar Términos y Condiciones."
+        if room_type not in ("normal", "premium"):
+            errors["room_type"] = "Tipo de habitación inválido."
+
+        d_in, d_out, date_err = self._validate_dates(checkin, checkout)
+        if date_err:    
+            errors["dates"] = date_err
+
+        motel = None
+        if motel_id.isdigit():
+            motel = request.env["motel.motel"].sudo().browse(int(motel_id))
+            if not motel.exists():
+                errors["motel_id"] = "Motel inválido."
+        else:
+            errors["motel_id"] = "Motel inválido."
+
+        pricing = None
+        if not errors and d_in and d_out:
+            pricing, perr = self._compute_price(room_type, d_in, d_out)
+            if perr:
+                errors["pricing"] = perr
+
+        if errors:
+            return request.render("motel_availability.reserve_page", {
+                "motel": motel,
+                "room_type": room_type,
+                "checkin": checkin,
+                "checkout": checkout,
+                "pricing": pricing,
+                "login_url": "/web/login",
+                "errors": errors,
+                "prefill": {"first": first, "last": last, "email": email, "phone": phone, "terms": terms},
+            })
+
+        try:
+            with request.env.cr.savepoint():
+                room = self._find_available_room(int(motel_id), room_type, d_in, d_out)
+                if not room:
+                    return request.render("motel_availability.reserve_error", {
+                        "message": "No hay habitaciones disponibles para ese rango. Cambia fechas o tipo.",
+                        "attempt_uuid": attempt_uuid,
+                    })
+
+                # Crear reserva (HU-04 trazabilidad la calcula tu modelo si usas compute+store)
+                reservation = request.env["motel.reservation"].sudo().create({
+                    "attempt_uuid": attempt_uuid,
+                    "room_id": room.id,
+                    "checkin_date": d_in,
+                    "checkout_date": d_out,
+                    "state": "confirmed",
+                    "room_type_code": room_type,
+                    "guest_first_name": first,
+                    "guest_last_name": last,
+                    "guest_email": email,
+                    "guest_phone": phone,
+                    "terms_accepted": True,
+                })
+
+            return request.redirect(f"/motels/confirmation/{reservation.reference}")
+
+        except Exception as e:
+            _logger.exception("Error confirmando reserva (attempt=%s)", attempt_uuid)
+            return request.render("motel_availability.reserve_error", {
+                "message": f"No se pudo confirmar la reserva: {e}",
+                "attempt_uuid": attempt_uuid,
+            })
+
+    # ==========================================================
+    # HU-02: confirmación
+    # ==========================================================
+    @http.route("/motels/confirmation/<string:reference>", type="http", auth="public", website=True, sitemap=False)
+    def confirmation_page(self, reference, **kw):
+        reservation = request.env["motel.reservation"].sudo().search([("reference", "=", reference)], limit=1)
+        if not reservation:
+            return request.not_found()
+        return request.render("motel_availability.confirmation_page", {"reservation": reservation})

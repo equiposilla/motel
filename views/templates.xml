@@ -306,11 +306,6 @@
     </t>
   </template>
 
-  <!-- =========================================================
-       BACKEND (Odoo 19)
-       - tree => list
-       - view_mode: list,form
-       ========================================================= -->
 
   <record id="view_motel_reservation_list" model="ir.ui.view">
     <field name="name">motel.reservation.list</field>
