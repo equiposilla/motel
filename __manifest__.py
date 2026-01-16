@@ -1,6 +1,7 @@
 # __manifest__.py
 {
     "name": "Motel Availability (HU-01 + HU-02 + HU-04)",
+    "author": "Equipo silla",
     "version": "1.2.0",
     "category": "Website",
     "summary": "Website de disponibilidad y reservas de motel con precios automáticos.",
