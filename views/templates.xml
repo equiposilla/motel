@@ -3,33 +3,77 @@
 
   <!-- =========================================================
        WEBSITE (QWeb) - HU-01 + HU-02 + HU-04
-       Odoo 19: QWeb sigue siendo <template> con t-call website.layout
+       Home tipo “Hotels-like” (hero + search card flotante)
+       Mantiene IDs/clases que tu JS ya usa:
+         - #checkin, #checkout, #date_error
+         - #motel_availability_root, #motels_grid
        ========================================================= -->
 
   <!-- HU-01: Moteles + disponibilidad + selección de tipo + precio calculado -->
   <template id="motels_page" name="Moteles - Disponibilidad">
     <t t-call="website.layout">
-      <div class="container my-4" id="motel_availability_root">
-        <h1 class="mb-3">Disponibilidad de Moteles</h1>
 
-        <!-- Selector de fechas -->
-        <div class="row g-2 align-items-end mb-4">
-          <div class="col-12 col-md-3">
-            <label class="form-label" for="checkin">Entrada</label>
-            <input type="date" class="form-control" id="checkin" t-att-min="today"/>
-          </div>
+      <!-- HERO -->
+      <section class="motel-hero">
+        <div class="motel-hero__overlay"></div>
 
-          <div class="col-12 col-md-3">
-            <label class="form-label" for="checkout">Salida</label>
-            <input type="date" class="form-control" id="checkout" t-att-min="today"/>
-          </div>
+        <div class="container motel-hero__inner">
+          <h1 class="motel-hero__title">Tu siguiente viaje comienza aquí</h1>
 
-          <div class="col-12 col-md-6">
-            <div class="alert alert-warning d-none" id="date_error" role="alert"></div>
+          <!-- SEARCH CARD -->
+          <div class="motel-searchcard shadow">
+            <div class="row g-2 align-items-center">
+
+              <div class="col-12 col-lg">
+                <label class="motel-label">¿A dónde quieres ir?</label>
+                <input type="text"
+                       class="form-control motel-input"
+                       placeholder="Ciudad, motel..."
+                       aria-label="Destino"/>
+              </div>
+
+              <div class="col-12 col-lg">
+                <label class="motel-label">Fechas</label>
+                <div class="d-flex gap-2">
+                  <input type="date"
+                         class="form-control motel-input"
+                         id="checkin"
+                         t-att-min="today"
+                         aria-label="Entrada"/>
+                  <input type="date"
+                         class="form-control motel-input"
+                         id="checkout"
+                         t-att-min="today"
+                         aria-label="Salida"/>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg">
+                <label class="motel-label">Huéspedes</label>
+                <select class="form-select motel-input" aria-label="Huéspedes">
+                  <option>1 persona, 1 habitación</option>
+                  <option>2 personas, 1 habitación</option>
+                  <option>3 personas, 1 habitación</option>
+                </select>
+              </div>
+
+              <div class="col-12 col-lg-auto">
+                <button type="button" class="btn btn-dark motel-btn-search w-100">
+                  Buscar
+                </button>
+              </div>
+
+              <div class="col-12">
+                <div class="alert alert-warning d-none mt-2 mb-0" id="date_error" role="alert"></div>
+              </div>
+
+            </div>
           </div>
         </div>
+      </section>
 
-        <!-- Moteles -->
+      <!-- RESULTADOS -->
+      <section class="container my-4" id="motel_availability_root">
         <div class="row g-3" id="motels_grid">
           <t t-foreach="motels" t-as="m">
             <div class="col-12 col-md-6">
@@ -96,7 +140,7 @@
                     </div>
                   </div>
 
-                  <!-- Estado + botón Reservar (único) -->
+                  <!-- Estado + botón Reservar -->
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
 
@@ -115,11 +159,14 @@
             </div>
           </t>
         </div>
-      </div>
+      </section>
+
     </t>
   </template>
 
-  <!-- HU-02: Formulario público de reserva (muestra precio calculado antes de confirmar) -->
+  <!-- =========================================================
+       HU-02: Formulario público de reserva (muestra precio calculado antes de confirmar)
+       ========================================================= -->
   <template id="reserve_page" name="Reserve Motel">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_reserve_root">
@@ -281,7 +328,6 @@
             Fechas: <t t-esc="reservation.checkin_date"/> → <t t-esc="reservation.checkout_date"/>
           </p>
 
-          <!-- HU-04: resumen guardado (auditoría) -->
           <div class="border-top pt-3 mt-3">
             <div class="d-flex justify-content-between flex-wrap gap-2">
               <span><strong>Tipo:</strong> <t t-esc="reservation.room_type_code"/></span>
@@ -306,6 +352,9 @@
     </t>
   </template>
 
+  <!-- =========================================================
+       BACKEND (Views, Action, Menu)
+       ========================================================= -->
 
   <record id="view_motel_reservation_list" model="ir.ui.view">
     <field name="name">motel.reservation.list</field>
@@ -404,7 +453,6 @@
     </field>
   </record>
 
-  <!-- Menú simple -->
   <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
   <menuitem id="menu_motel_reservation"
             name="Reservations"

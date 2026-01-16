@@ -312,20 +312,33 @@ class MotelAvailabilityController(http.Controller):
     def reserve_page(self, motel_id=None, room_type=None, checkin=None, checkout=None, **kw):
         Motel = request.env["motel.motel"].sudo()
 
+        # 1) Validar motel_id
         motel = Motel.browse(int(motel_id)) if motel_id and str(motel_id).isdigit() else Motel.browse([])
         if motel_id and (not motel or not motel.exists()):
             return request.not_found()
 
+        # 2) Defaults de fechas
         today = self._today()
-        checkin = checkin or fields.Date.to_string(today)
-        checkout = checkout or fields.Date.to_string(today + timedelta(days=1))
-        room_type = (room_type or "").strip()
+        checkin = (checkin or fields.Date.to_string(today)).strip()
+        checkout = (checkout or fields.Date.to_string(today + timedelta(days=1))).strip()
 
+        # 3) Normalizar room_type con default seguro
+        room_type = (room_type or "").strip().lower()
+        if room_type not in ("normal", "premium"):
+            room_type = "normal"
+
+        # 4) Validar fechas + calcular pricing
         d_in, d_out, err = self._validate_dates(checkin, checkout)
+
         pricing = None
         if not err:
-            pricing, _ = self._compute_price(room_type, d_in, d_out)
+            pricing, perr = self._compute_price(room_type, d_in, d_out)
+            if perr:
+                err = perr
 
+        # 5) Render
+        # Nota: devolvemos pricing aunque haya errores del formulario (en este GET no hay),
+        # pero si err existe, el template ya mostrará el warning.
         return request.render("motel_availability.reserve_page", {
             "motel": motel,
             "room_type": room_type,
@@ -333,7 +346,7 @@ class MotelAvailabilityController(http.Controller):
             "checkout": checkout,
             "pricing": pricing,
             "login_url": "/web/login",
-            "errors": {},
+            "errors": {},   # en GET no hay errors de form
             "prefill": {},
         })
 
