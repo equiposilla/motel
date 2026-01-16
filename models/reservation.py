@@ -52,6 +52,7 @@ class MotelReservation(models.Model):
     guest_phone = fields.Char(string="Guest Phone")
     terms_accepted = fields.Boolean(string="Terms Accepted", default=False)
 
+
     # ---------------------------------------------------------
     # Integración con ventas (HU-02)
     # Requiere: depends ["sale"]

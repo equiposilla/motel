@@ -176,6 +176,99 @@ class MotelAvailabilityController(http.Controller):
             })
 
         return payload
+    
+
+    def _get_or_create_partner(self, first, last, email, phone):
+        """Crea/reutiliza res.partner por email (contacto)."""
+        Partner = request.env["res.partner"].sudo()
+        email_norm = (email or "").strip().lower()
+        full_name = f"{first} {last}".strip()
+
+        if not email_norm:
+            # fallback muy raro (pero evita crash)
+            return Partner.create({"name": full_name or "Guest"})
+
+        partner = Partner.search([("email", "=", email_norm)], limit=1)
+        if partner:
+            vals = {}
+            if full_name and (not partner.name or not partner.name.strip()):
+                vals["name"] = full_name
+            if phone and (not partner.phone or not partner.phone.strip()):
+                vals["phone"] = phone
+            if vals:
+                partner.write(vals)
+            return partner
+
+        return Partner.create({
+            "name": full_name or email_norm,
+            "email": email_norm,
+            "phone": phone,
+            "company_type": "person",
+        })
+
+    def _ensure_reservation_product(self):
+        """
+        Producto servicio estable para líneas de Sale Order.
+        Usamos product.template y devolvemos la variante.
+        """
+        Template = request.env["product.template"].sudo()
+        tmpl = Template.search([("default_code", "=", "MOTEL_ROOM_NIGHT")], limit=1)
+        if not tmpl:
+            tmpl = Template.create({
+                "name": "Motel Room Night",
+                "default_code": "MOTEL_ROOM_NIGHT",
+                "type": "service",
+                "sale_ok": True,
+                "purchase_ok": False,
+            })
+        return tmpl.product_variant_id
+
+    def _create_sale_order_for_reservation(self, partner, room, room_type, checkin, checkout, pricing, attempt_uuid):
+        """
+        Crea SO con:
+          - línea base: nights * base_per_day
+          - línea recargo (+50%) si aplica (una línea separada para auditoría)
+        """
+        SaleOrder = request.env["sale.order"].sudo()
+        product = self._ensure_reservation_product()
+
+        nights = int(pricing["nights"])
+        base_per_day = float(pricing["base_per_day"])
+        base_total = float(pricing["base_total"])
+        surcharge_applied = bool(pricing["surcharge_applied"])
+
+        order_lines = [
+            (0, 0, {
+                "product_id": product.id,
+                "name": f"Habitación {room_type.upper()} - {room.motel_id.name} ({room.name}) {checkin}→{checkout}",
+                "product_uom_qty": nights,
+                "price_unit": base_per_day,
+            })
+        ]
+
+        if surcharge_applied:
+            surcharge_amount = base_total * 0.5
+            order_lines.append(
+                (0, 0, {
+                    "product_id": product.id,
+                    "name": "Recargo estancia larga (+50%)",
+                    "product_uom_qty": 1,
+                    "price_unit": surcharge_amount,
+                })
+            )
+
+        so = SaleOrder.create({
+            "partner_id": partner.id,
+            "origin": attempt_uuid,
+            "note": f"Reserva {room.motel_id.name} / {room.name} / {checkin} → {checkout} / {room_type}",
+            "order_line": order_lines,
+        })
+
+        so.action_confirm()
+
+        return so
+
+    
 
     # ----------------------------
     # HU-01: página
@@ -319,10 +412,11 @@ class MotelAvailabilityController(http.Controller):
             errors["motel_id"] = "Motel inválido."
 
         pricing = None
-        if not errors and d_in and d_out:
+        if d_in and d_out and room_type in ("normal", "premium"):
             pricing, perr = self._compute_price(room_type, d_in, d_out)
             if perr:
                 errors["pricing"] = perr
+                pricing = None
 
         if errors:
             return request.render("motel_availability.reserve_page", {
@@ -345,7 +439,21 @@ class MotelAvailabilityController(http.Controller):
                         "attempt_uuid": attempt_uuid,
                     })
 
-                # Crear reserva (HU-04 trazabilidad la calcula tu modelo si usas compute+store)
+                # 1) Contacto (partner)
+                partner = self._get_or_create_partner(first, last, email, phone)
+
+                # 2) Orden de venta
+                so = self._create_sale_order_for_reservation(
+                    partner=partner,
+                    room=room,
+                    room_type=room_type,
+                    checkin=checkin,
+                    checkout=checkout,
+                    pricing=pricing,
+                    attempt_uuid=attempt_uuid,
+                )
+
+                # 3) Reserva vinculada a partner + SO
                 reservation = request.env["motel.reservation"].sudo().create({
                     "attempt_uuid": attempt_uuid,
                     "room_id": room.id,
@@ -353,6 +461,10 @@ class MotelAvailabilityController(http.Controller):
                     "checkout_date": d_out,
                     "state": "confirmed",
                     "room_type_code": room_type,
+
+                    "partner_id": partner.id,
+                    "sale_order_id": so.id,
+
                     "guest_first_name": first,
                     "guest_last_name": last,
                     "guest_email": email,
@@ -361,6 +473,7 @@ class MotelAvailabilityController(http.Controller):
                 })
 
             return request.redirect(f"/motels/confirmation/{reservation.reference}")
+            
 
         except Exception as e:
             _logger.exception("Error confirmando reserva (attempt=%s)", attempt_uuid)
