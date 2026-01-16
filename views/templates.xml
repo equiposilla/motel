@@ -14,7 +14,9 @@
     <t t-call="website.layout">
 
       <!-- HERO -->
-      <section class="motel-hero">
+      <section class="motel-hero"
+               t-att-style="'background-image:url(%s)' % '/motel_availability/static/img/motel.webp'">
+
         <div class="motel-hero__overlay"></div>
 
         <div class="container motel-hero__inner">
@@ -38,19 +40,17 @@
                   <input type="date"
                          class="form-control motel-input"
                          id="checkin"
-                         t-att-min="today"
-                         aria-label="Entrada"/>
+                         t-att-min="today"/>
                   <input type="date"
                          class="form-control motel-input"
                          id="checkout"
-                         t-att-min="today"
-                         aria-label="Salida"/>
+                         t-att-min="today"/>
                 </div>
               </div>
 
               <div class="col-12 col-lg">
                 <label class="motel-label">Huéspedes</label>
-                <select class="form-select motel-input" aria-label="Huéspedes">
+                <select class="form-select motel-input">
                   <option>1 persona, 1 habitación</option>
                   <option>2 personas, 1 habitación</option>
                   <option>3 personas, 1 habitación</option>
@@ -58,13 +58,16 @@
               </div>
 
               <div class="col-12 col-lg-auto">
-                <button type="button" class="btn btn-dark motel-btn-search w-100">
+                <button type="button"
+                        class="btn btn-dark motel-btn-search w-100">
                   Buscar
                 </button>
               </div>
 
               <div class="col-12">
-                <div class="alert alert-warning d-none mt-2 mb-0" id="date_error" role="alert"></div>
+                <div class="alert alert-warning d-none mt-2 mb-0"
+                     id="date_error"
+                     role="alert"></div>
               </div>
 
             </div>
@@ -76,9 +79,11 @@
       <section class="container my-4" id="motel_availability_root">
         <div class="row g-3" id="motels_grid">
           <t t-foreach="motels" t-as="m">
+
             <div class="col-12 col-md-6">
               <div class="card h-100 shadow-sm">
                 <div class="card-body">
+
                   <h5 class="card-title mb-1">
                     <t t-esc="m.name"/>
                   </h5>
@@ -88,12 +93,11 @@
                     <span><t t-esc="m.room_total"/> hab.</span>
                   </div>
 
-                  <!-- Normal -->
-                  <div class="d-flex justify-content-between border rounded p-2 mb-2 room-choice"
+                  <!-- NORMAL -->
+                  <div class="room-choice d-flex justify-content-between border rounded p-2 mb-2"
                        data-room-choice="normal"
                        role="button"
-                       tabindex="0"
-                       aria-label="Elegir habitación Normal">
+                       tabindex="0">
                     <div>
                       <div class="fw-semibold">Normal</div>
                       <div class="text-muted small">
@@ -102,11 +106,10 @@
                       <div class="text-muted small">
                         Total (<span data-nights="1">—</span> noches):
                         <strong><span data-total-normal="1">—</span></strong>
-                        <span class="ms-1 text-warning d-none" data-surcharge-normal="1">(+50%)</span>
+                        <span class="ms-1 text-warning d-none"
+                              data-surcharge-normal="1">(+50%)</span>
                       </div>
-                      <div class="text-muted small">
-                        <span class="room-choice-hint" data-hint-normal="1"></span>
-                      </div>
+                      <span class="room-choice-hint" data-hint-normal="1"></span>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-normal="1">—</div>
@@ -114,12 +117,11 @@
                     </div>
                   </div>
 
-                  <!-- Premium -->
-                  <div class="d-flex justify-content-between border rounded p-2 mb-3 room-choice"
+                  <!-- PREMIUM -->
+                  <div class="room-choice d-flex justify-content-between border rounded p-2 mb-3"
                        data-room-choice="premium"
                        role="button"
-                       tabindex="0"
-                       aria-label="Elegir habitación Premium">
+                       tabindex="0">
                     <div>
                       <div class="fw-semibold">Premium</div>
                       <div class="text-muted small">
@@ -128,11 +130,10 @@
                       <div class="text-muted small">
                         Total (<span data-nights="1">—</span> noches):
                         <strong><span data-total-premium="1">—</span></strong>
-                        <span class="ms-1 text-warning d-none" data-surcharge-premium="1">(+50%)</span>
+                        <span class="ms-1 text-warning d-none"
+                              data-surcharge-premium="1">(+50%)</span>
                       </div>
-                      <div class="text-muted small">
-                        <span class="room-choice-hint" data-hint-premium="1"></span>
-                      </div>
+                      <span class="room-choice-hint" data-hint-premium="1"></span>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-premium="1">—</div>
@@ -140,29 +141,34 @@
                     </div>
                   </div>
 
-                  <!-- Estado + botón Reservar -->
                   <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
+                    <span class="badge bg-secondary" data-status="1">
+                      Selecciona fechas
+                    </span>
 
                     <a class="btn btn-primary disabled"
-                       role="button"
-                       aria-disabled="true"
                        data-action-reserve="1"
+                       aria-disabled="true"
                        href="#">
                       Reservar
                     </a>
                   </div>
 
-                  <input type="hidden" data-motel-id="1" t-att-value="m.id"/>
+                  <input type="hidden"
+                         data-motel-id="1"
+                         t-att-value="m.id"/>
+
                 </div>
               </div>
             </div>
+
           </t>
         </div>
       </section>
 
     </t>
   </template>
+
 
   <!-- =========================================================
        HU-02: Formulario público de reserva (muestra precio calculado antes de confirmar)

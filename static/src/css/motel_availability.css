@@ -6,7 +6,7 @@
   align-items: center;
   background-image: url("/motel_availability/static/src/img/hero.jpg"); /* pon tu imagen */
   background-size: cover;
-  background-position: center;
+  background-position: center top;
   border-bottom-left-radius: 24px;
   border-bottom-right-radius: 24px;
   overflow: hidden;
