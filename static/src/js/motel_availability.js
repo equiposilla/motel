@@ -1,9 +1,8 @@
 (function () {
   "use strict";
 
-  // -------------------------
+  
   // Utils
-  // -------------------------
   function qs(sel, root) {
     return (root || document).querySelector(sel);
   }
@@ -48,9 +47,7 @@
     };
   }
 
-  // -------------------------
-  // HTTP
-  // -------------------------
+
   async function refreshAvailability(checkin, checkout) {
     const url =
       `/motels/availability_http?checkin=${encodeURIComponent(checkin)}` +
@@ -73,19 +70,15 @@
     return data.motels || [];
   }
 
-  // -------------------------
-  // Global state (CRÍTICO: evita closures con datos viejos)
-  // -------------------------
+  
   const STATE = {
-    byMotelId: Object.create(null), // { [motelId]: payload }
-    boundCards: new WeakSet(),      // para no re-binder eventos
+    byMotelId: Object.create(null), 
+    boundCards: new WeakSet(),      
     checkinEl: null,
     checkoutEl: null,
   };
 
-  // -------------------------
-  // Reserve link helpers
-  // -------------------------
+
   function setReserveLink(btn, motelId, roomType, checkin, checkout) {
     const url =
       `/motels/reserve?motel_id=${encodeURIComponent(String(motelId))}` +
@@ -141,9 +134,6 @@
     return "normal";
   }
 
-  // -------------------------
-  // IMPORTANT: siempre tomar fechas ACTUALES del DOM
-  // -------------------------
   function getCurrentDates() {
     const checkinValue = STATE.checkinEl ? STATE.checkinEl.value : "";
     const checkoutValue = STATE.checkoutEl ? STATE.checkoutEl.value : "";
@@ -175,7 +165,7 @@
     const selectedBucket = selected === "premium" ? m.premium : m.normal;
     const available = Number((selectedBucket && selectedBucket.available) || 0);
 
-    // Texto del botón con total calculado (backend)
+    // Texto del botón con total calculado en backend
     const typeLabel = selected === "premium" ? "Premium" : "Normal";
     const total = Number((selectedBucket && selectedBucket.final_total) || 0);
     btn.textContent = `Reservar (${typeLabel}) - ${formatMoney(total)}`;
@@ -193,9 +183,6 @@
     qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
   }
 
-  // -------------------------
-  // Render
-  // -------------------------
   function renderCard(card, m) {
     const motelInput = qs("input[data-motel-id]", card);
     if (!motelInput) return;
@@ -280,7 +267,6 @@
     const onSelect = (type) => {
       setSelectedType(card, type);
       markSelected(card, type);
-      // ✅ CRÍTICO: NO usar "m" de closure. Tomar el payload más reciente + fechas actuales.
       updateReserveButton(card, motelId);
     };
 
@@ -318,9 +304,6 @@
     });
   }
 
-  // -------------------------
-  // Boot
-  // -------------------------
   document.addEventListener("DOMContentLoaded", () => {
     const root = document.getElementById("motel_availability_root");
     if (!root) return;
@@ -330,13 +313,11 @@
     const errorBox = qs("#date_error");
     if (!checkin || !checkout || !errorBox) return;
 
-    // Guardar refs globales (para leer fechas actuales en clicks)
     STATE.checkinEl = checkin;
     STATE.checkoutEl = checkout;
 
     const t = todayLocalISO();
 
-    // Defaults
     if (!checkin.value) checkin.value = t;
     if (!checkout.value) checkout.value = addDaysISO(checkin.value, 1);
 
@@ -354,10 +335,8 @@
     }
 
     async function onChangeImpl() {
-      // Ajusta min checkout (>= checkin + 1)
+      
       checkout.min = addDaysISO(checkin.value, 1);
-
-      // Auto-fix checkout si quedó inválido
       if (checkout.value <= checkin.value) {
         checkout.value = addDaysISO(checkin.value, 1);
       }
@@ -365,7 +344,6 @@
       const err = validateDates(checkin.value, checkout.value);
       if (err) {
         showError(err);
-        // Además, deshabilita los botones (fechas inválidas)
         qsa("#motels_grid .card").forEach((card) => {
           const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
           if (motelId) updateReserveButton(card, motelId);
@@ -377,11 +355,7 @@
 
       try {
         const motels = await refreshAvailability(checkin.value, checkout.value);
-
-        // Render general (esto actualiza STATE.byMotelId con payload NUEVO)
         renderMotels(motels);
-
-        // Por si el usuario ya tenía una selección previa, re-evaluar botón con fechas actuales
         qsa("#motels_grid .card").forEach((card) => {
           const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
           if (motelId) updateReserveButton(card, motelId);

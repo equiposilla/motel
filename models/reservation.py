@@ -8,16 +8,10 @@ class MotelReservation(models.Model):
     _description = "Room Reservation"
     _order = "checkin_date desc, id desc"
 
-    # ==========================================================
-    # HU-04 (fuente única): reglas de precios en el MODELO
-    # ==========================================================
     PRICE_PER_DAY = {"normal": 100.0, "premium": 200.0}
     LONG_STAY_MIN_DAYS = 6
     LONG_STAY_MULTIPLIER = 1.5
 
-    # ---------------------------------------------------------
-    # Identificación / trazabilidad
-    # ---------------------------------------------------------
     reference = fields.Char(
         string="Reference",
         readonly=True,
@@ -27,9 +21,6 @@ class MotelReservation(models.Model):
     )
     attempt_uuid = fields.Char(string="Attempt ID", copy=False, index=True)
 
-    # ---------------------------------------------------------
-    # Relación con inventario / fechas / estado
-    # ---------------------------------------------------------
     room_id = fields.Many2one("motel.room", string="Room", required=True, ondelete="restrict")
     motel_id = fields.Many2one(related="room_id.motel_id", store=True, readonly=True)
 
@@ -42,9 +33,6 @@ class MotelReservation(models.Model):
         required=True,
     )
 
-    # ---------------------------------------------------------
-    # Cliente / huésped (HU-02)
-    # ---------------------------------------------------------
     partner_id = fields.Many2one("res.partner", string="Customer", ondelete="set null")
     guest_first_name = fields.Char(string="Guest First Name")
     guest_last_name = fields.Char(string="Guest Last Name")
@@ -53,16 +41,8 @@ class MotelReservation(models.Model):
     terms_accepted = fields.Boolean(string="Terms Accepted", default=False)
 
 
-    # ---------------------------------------------------------
-    # Integración con ventas (HU-02)
-    # Requiere: depends ["sale"]
-    # ---------------------------------------------------------
     sale_order_id = fields.Many2one("sale.order", string="Sale Order", ondelete="set null")
 
-    # ---------------------------------------------------------
-    # HU-04: trazabilidad de cálculo (CA-04)
-    # Todos estos se calculan en backend, se guardan y son readonly.
-    # ---------------------------------------------------------
     currency_id = fields.Many2one(
         "res.currency",
         string="Currency",
@@ -114,9 +94,6 @@ class MotelReservation(models.Model):
         readonly=True,
     )
 
-    # ==========================================================
-    # HU-04: cálculo central (CA-01, CA-02, CA-03, CA-04)
-    # ==========================================================
     @api.depends("room_type_code", "checkin_date", "checkout_date")
     def _compute_pricing(self):
         """
@@ -156,9 +133,6 @@ class MotelReservation(models.Model):
             rec.surcharge_applied = surcharge
             rec.final_total = final_total
 
-    # ==========================================================
-    # Constraints (integridad)
-    # ==========================================================
     @api.constrains("checkin_date", "checkout_date")
     def _check_dates(self):
         for rec in self:
@@ -188,9 +162,6 @@ class MotelReservation(models.Model):
                 if rec.nights != expected:
                     raise ValidationError("El número de noches no coincide con las fechas.")
 
-    # ==========================================================
-    # Create/Write: folio por secuencia + recalcular (defensa extra)
-    # ==========================================================
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:

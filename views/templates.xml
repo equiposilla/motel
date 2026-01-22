@@ -1,19 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-  <!-- =========================================================
-       WEBSITE (QWeb) - HU-01 + HU-02 + HU-04
-       Home tipo “Hotels-like” (hero + search card flotante)
-       Mantiene IDs/clases que tu JS ya usa:
-         - #checkin, #checkout, #date_error
-         - #motel_availability_root, #motels_grid
-       ========================================================= -->
-
-  <!-- HU-01: Moteles + disponibilidad + selección de tipo + precio calculado -->
   <template id="motels_page" name="Moteles - Disponibilidad">
     <t t-call="website.layout">
 
-      <!-- HERO -->
       <section class="motel-hero"
                t-att-style="'background-image:url(%s)' % '/motel_availability/static/img/motel.webp'">
 
@@ -22,7 +12,6 @@
         <div class="container motel-hero__inner">
           <h1 class="motel-hero__title">Tu siguiente viaje comienza aquí</h1>
 
-          <!-- SEARCH CARD -->
           <div class="motel-searchcard shadow">
             <div class="row g-2 align-items-center">
 
@@ -75,7 +64,6 @@
         </div>
       </section>
 
-      <!-- RESULTADOS -->
       <section class="container my-4" id="motel_availability_root">
         <div class="row g-3" id="motels_grid">
           <t t-foreach="motels" t-as="m">
@@ -93,7 +81,6 @@
                     <span><t t-esc="m.room_total"/> hab.</span>
                   </div>
 
-                  <!-- NORMAL -->
                   <div class="room-choice d-flex justify-content-between border rounded p-2 mb-2"
                        data-room-choice="normal"
                        role="button"
@@ -117,7 +104,6 @@
                     </div>
                   </div>
 
-                  <!-- PREMIUM -->
                   <div class="room-choice d-flex justify-content-between border rounded p-2 mb-3"
                        data-room-choice="premium"
                        role="button"
@@ -169,10 +155,6 @@
     </t>
   </template>
 
-
-  <!-- =========================================================
-       HU-02: Formulario público de reserva (muestra precio calculado antes de confirmar)
-       ========================================================= -->
   <template id="reserve_page" name="Reserve Motel">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_reserve_root">
@@ -186,7 +168,6 @@
           Fechas: <strong><t t-esc="checkin"/></strong> → <strong><t t-esc="checkout"/></strong>
         </p>
 
-        <!-- HU-04: Resumen de precio antes de confirmar -->
         <t t-if="pricing">
           <div class="alert alert-info mt-3" role="alert">
             <div class="d-flex justify-content-between flex-wrap gap-2">
@@ -304,7 +285,6 @@
     </t>
   </template>
 
-  <!-- HU-02: Error -->
   <template id="reserve_error" name="Reserve Error">
     <t t-call="website.layout">
       <div class="container my-5">
@@ -320,7 +300,6 @@
     </t>
   </template>
 
-  <!-- HU-02: Confirmación -->
   <template id="confirmation_page" name="Reservation Confirmed">
     <t t-call="website.layout">
       <div class="container my-5">
@@ -357,10 +336,6 @@
       </div>
     </t>
   </template>
-
-  <!-- =========================================================
-       BACKEND (Views, Action, Menu)
-       ========================================================= -->
 
   <record id="view_motel_reservation_list" model="ir.ui.view">
     <field name="name">motel.reservation.list</field>
