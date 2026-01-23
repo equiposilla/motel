@@ -12,7 +12,7 @@
           <h1 class="motel-hero__title">Tu siguiente viaje comienza aquí</h1>
 
           <!-- Selector de fechas -->
-          <div class="row g-2 align-items-end mb-4">
+          <div class="row g-2 align-items-end mb-4 justify-content-center">
             <div class="col-12 col-md-3">
               <label class="form-label">Entrada</label>
               <input type="date" class="form-control" id="checkin" t-att-min="today"/>

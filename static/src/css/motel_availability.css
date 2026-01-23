@@ -4,7 +4,7 @@
   min-height: 420px;
   display: flex;
   align-items: center;
-  background-image: url("/motel_availability/static/src/img/hero.jpg"); /* pon tu imagen */
+  background-image: url("/motel_availability/static/src/img/motel.webp");
   background-size: cover;
   background-position: center 20%;
   border-bottom-left-radius: 24px;
