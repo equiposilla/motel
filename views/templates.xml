@@ -76,7 +76,7 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
                     <!-- No se implementa reserva (fuera de alcance) -->
-                    <button class="btn btn-primary" data-action-reserve="1" disabled="disabled">
+                    <a class="btn btn-primary" data-action-reserve="1" disabled="disabled">
                       Reservar
                     </a>
                   </div>
