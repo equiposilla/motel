@@ -1,44 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+
+  <!-- =========================
+       PAGE: MOTELS AVAILABILITY
+       ========================= -->
   <template id="motels_page" name="Moteles - Disponibilidad">
     <t t-call="website.layout">
 
+      <!-- HERO -->
       <section class="motel-hero"
                t-att-style="'background-image:url(%s)' % '/motel_availability/static/img/motel.webp'">
 
         <div class="motel-hero__overlay"></div>
 
-        <div class="container motel-hero__inner text-center">
-          <h1 class="motel-hero__title">Tu siguiente viaje comienza aquí</h1>
+        <div class="container motel-hero__inner py-4">
+          <h1 class="motel-hero__title text-center mb-3">Tu siguiente viaje comienza aquí</h1>
 
-          <div class="d-flex justify-content-center">
-            <div class="w-100" style="max-width: 900px;">
-              <div class="row g-2 align-items-end mb-4 justify-content-center text-start">
-                <div class="col-12 col-md-3">
-                  <label class="form-label">Entrada</label>
-                  <input type="date" class="form-control" id="checkin" t-att-min="today"/>
-                </div>
+          <!-- FECHAS CENTRADAS -->
+          <div class="motel-searchcard shadow mx-auto">
+            <div class="row g-2 justify-content-center align-items-end">
 
-                <div class="col-12 col-md-3">
-                  <label class="form-label">Salida</label>
-                  <input type="date" class="form-control" id="checkout" t-att-min="today"/>
-                </div>
-
-                <div class="col-12 col-md-6">
-                  <div class="alert alert-warning d-none mb-0" id="date_error"></div>
-                </div>
+              <div class="col-12 col-sm-6 col-lg-3">
+                <label class="motel-label" for="checkin">Entrada</label>
+                <input type="date"
+                       class="form-control motel-input"
+                       id="checkin"
+                       t-att-min="today"/>
               </div>
+
+              <div class="col-12 col-sm-6 col-lg-3">
+                <label class="motel-label" for="checkout">Salida</label>
+                <input type="date"
+                       class="form-control motel-input"
+                       id="checkout"
+                       t-att-min="today"/>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="alert alert-warning d-none mb-0"
+                     id="date_error"
+                     role="alert"></div>
+              </div>
+
             </div>
           </div>
-        </div>  
+        </div>
       </section>
 
+      <!-- RESULTADOS (SOLO UNA VEZ) -->
       <section class="container my-4" id="motel_availability_root">
         <div class="row g-3" id="motels_grid">
-          <t t-foreach="motels" t-as="m">
 
-            <div class="col-12 col-md-6">
-              <div class="card h-100 shadow-sm">
+          <t t-foreach="motels" t-as="m">
+            <div class="col-12 col-lg-6">
+              <div class="card h-100 shadow-sm motel-card">
                 <div class="card-body">
 
                   <h5 class="card-title mb-1">
@@ -50,37 +65,78 @@
                     <span><t t-esc="m.room_total"/> hab.</span>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-2">
+                  <!-- NORMAL -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-2 room-choice"
+                       data-room-choice="normal"
+                       role="button"
+                       tabindex="0">
                     <div>
                       <div class="fw-semibold">Normal</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-normal="1">—</span></div>
+
+                      <div class="text-muted small">
+                        Precio/día: <span data-price-normal="1">—</span>
+                      </div>
+
+                      <div class="text-muted small">
+                        Total (<span data-nights="1">—</span> noches):
+                        <strong><span data-total-normal="1">—</span></strong>
+                        <span class="ms-1 text-warning d-none" data-surcharge-normal="1">(+50%)</span>
+                      </div>
+
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-normal="1"></span>
+                      </div>
                     </div>
+
                     <div class="text-end">
                       <div class="fw-semibold" data-available-normal="1">—</div>
                       <div class="text-muted small">disponibles</div>
                     </div>
                   </div>
 
-                  <div class="d-flex justify-content-between border rounded p-2 mb-3">
+                  <!-- PREMIUM -->
+                  <div class="d-flex justify-content-between border rounded p-2 mb-3 room-choice"
+                       data-room-choice="premium"
+                       role="button"
+                       tabindex="0">
                     <div>
                       <div class="fw-semibold">Premium</div>
-                      <div class="text-muted small">Precio/noche: <span data-price-premium="1">—</span></div>
+
+                      <div class="text-muted small">
+                        Precio/día: <span data-price-premium="1">—</span>
+                      </div>
+
+                      <div class="text-muted small">
+                        Total (<span data-nights="1">—</span> noches):
+                        <strong><span data-total-premium="1">—</span></strong>
+                        <span class="ms-1 text-warning d-none" data-surcharge-premium="1">(+50%)</span>
+                      </div>
+
+                      <div class="text-muted small">
+                        <span class="room-choice-hint" data-hint-premium="1"></span>
+                      </div>
                     </div>
+
                     <div class="text-end">
                       <div class="fw-semibold" data-available-premium="1">—</div>
                       <div class="text-muted small">disponibles</div>
                     </div>
                   </div>
 
-                  <!-- Estado + botón Reservar único -->
+                  <!-- STATUS + RESERVAR -->
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-secondary" data-status="1">Selecciona fechas</span>
-                    <!-- No se implementa reserva (fuera de alcance) -->
-                    <a class="btn btn-primary" data-action-reserve="1" disabled="disabled">
+
+                    <a class="btn btn-primary disabled"
+                       role="button"
+                       aria-disabled="true"
+                       data-action-reserve="1"
+                       href="#">
                       Reservar
                     </a>
                   </div>
 
+                  <!-- ID motel (NO hardcode) -->
                   <input type="hidden"
                          data-motel-id="1"
                          t-att-value="m.id"/>
@@ -88,14 +144,37 @@
                 </div>
               </div>
             </div>
-
           </t>
+
         </div>
       </section>
+
+      <!-- ESTILOS (centrado + UX click) -->
+      <style>
+        .motel-hero__inner{
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+        }
+        .motel-searchcard{
+          width:100%;
+          max-width:900px;
+          margin-left:auto;
+          margin-right:auto;
+          padding:12px;
+          border-radius:14px;
+          background:#fff;
+        }
+        .room-choice{ cursor:pointer; }
+      </style>
 
     </t>
   </template>
 
+
+  <!-- =========================
+       PAGE: RESERVE
+       ========================= -->
   <template id="reserve_page" name="Reserve Motel">
     <t t-call="website.layout">
       <div class="container my-4" id="motel_reserve_root">
@@ -226,6 +305,10 @@
     </t>
   </template>
 
+
+  <!-- =========================
+       PAGE: RESERVE ERROR
+       ========================= -->
   <template id="reserve_error" name="Reserve Error">
     <t t-call="website.layout">
       <div class="container my-5">
@@ -241,6 +324,10 @@
     </t>
   </template>
 
+
+  <!-- =========================
+       PAGE: CONFIRMATION
+       ========================= -->
   <template id="confirmation_page" name="Reservation Confirmed">
     <t t-call="website.layout">
       <div class="container my-5">
@@ -277,4 +364,113 @@
       </div>
     </t>
   </template>
+
+
+  <!-- =========================
+       BACKEND VIEWS (SIN CAMBIOS)
+       ========================= -->
+  <record id="view_motel_reservation_list" model="ir.ui.view">
+    <field name="name">motel.reservation.list</field>
+    <field name="model">motel.reservation</field>
+    <field name="arch" type="xml">
+      <list string="Reservations">
+        <field name="reference"/>
+        <field name="state"/>
+        <field name="motel_id"/>
+        <field name="room_id"/>
+        <field name="room_type_code"/>
+        <field name="checkin_date"/>
+        <field name="checkout_date"/>
+        <field name="nights"/>
+        <field name="final_total"/>
+        <field name="partner_id"/>
+        <field name="sale_order_id"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_motel_reservation_form" model="ir.ui.view">
+    <field name="name">motel.reservation.form</field>
+    <field name="model">motel.reservation</field>
+    <field name="arch" type="xml">
+      <form string="Reservation">
+        <sheet>
+          <header>
+            <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+          </header>
+
+          <group>
+            <group>
+              <field name="reference" readonly="1"/>
+              <field name="attempt_uuid" readonly="1"/>
+              <field name="motel_id" readonly="1"/>
+              <field name="room_id"/>
+              <field name="room_type_code"/>
+            </group>
+            <group>
+              <field name="checkin_date"/>
+              <field name="checkout_date"/>
+              <field name="nights" readonly="1"/>
+              <field name="currency_id" groups="base.group_system"/>
+            </group>
+          </group>
+
+          <notebook>
+            <page string="Guest">
+              <group>
+                <group>
+                  <field name="partner_id"/>
+                  <field name="guest_first_name"/>
+                  <field name="guest_last_name"/>
+                </group>
+                <group>
+                  <field name="guest_email"/>
+                  <field name="guest_phone"/>
+                  <field name="terms_accepted"/>
+                </group>
+              </group>
+            </page>
+
+            <page string="Pricing (HU-04)">
+              <group>
+                <group>
+                  <field name="base_price_per_day" readonly="1"/>
+                  <field name="base_total" readonly="1"/>
+                </group>
+                <group>
+                  <field name="surcharge_applied" readonly="1"/>
+                  <field name="final_total" readonly="1"/>
+                </group>
+              </group>
+            </page>
+
+            <page string="Sales">
+              <group>
+                <field name="sale_order_id"/>
+              </group>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_motel_reservation" model="ir.actions.act_window">
+    <field name="name">Reservations</field>
+    <field name="res_model">motel.reservation</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">
+        Crea y gestiona reservas de habitaciones.
+      </p>
+    </field>
+  </record>
+
+  <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
+  <menuitem id="menu_motel_reservation"
+            name="Reservations"
+            parent="menu_motel_root"
+            action="action_motel_reservation"
+            sequence="10"/>
+
 </odoo>

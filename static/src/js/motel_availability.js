@@ -47,6 +47,7 @@
     };
   }
 
+
   async function refreshAvailability(checkin, checkout) {
     const url =
       `/motels/availability_http?checkin=${encodeURIComponent(checkin)}` +
@@ -303,9 +304,6 @@
     });
   }
 
-  // -------------------------
-  // Boot
-  // -------------------------
   document.addEventListener("DOMContentLoaded", () => {
     const root = document.getElementById("motel_availability_root");
     if (!root) return;
