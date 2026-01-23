@@ -9,16 +9,6 @@ class MotelReservation(models.Model):
     _description = "Room Reservation"
     _order = "checkin_date desc, id desc"
 
-<<<<<<< HEAD
-    reference = fields.Char(default=lambda self: f"RSV-{uuid.uuid4().hex[:10].upper()}", readonly=True)
-    attempt_uuid = fields.Char(readonly=True)  # trazabilidad (intentos)
-
-    room_id = fields.Many2one("motel.room", required=True, ondelete="restrict")
-    motel_id = fields.Many2one(related="room_id.motel_id", store=True, readonly=True)
-
-    checkin_date = fields.Date(required=True)
-    checkout_date = fields.Date(required=True)
-=======
     PRICE_PER_DAY = {"normal": 100.0, "premium": 200.0}
     LONG_STAY_MIN_DAYS = 6
     LONG_STAY_MULTIPLIER = 1.5
@@ -37,7 +27,6 @@ class MotelReservation(models.Model):
 
     checkin_date = fields.Date(string="Check-in", required=True)
     checkout_date = fields.Date(string="Check-out", required=True)
->>>>>>> HU-4
 
     state = fields.Selection(
         [("draft", "Draft"), ("confirmed", "Confirmed"), ("cancelled", "Cancelled")],
@@ -45,18 +34,6 @@ class MotelReservation(models.Model):
         required=True,
     )
 
-<<<<<<< HEAD
-    # Datos mínimos guest (HU-02)
-    guest_first_name = fields.Char(required=True)
-    guest_last_name = fields.Char(required=True)
-    guest_email = fields.Char(required=True)
-    guest_phone = fields.Char(required=True)
-    terms_accepted = fields.Boolean(default=False)
-
-    partner_id = fields.Many2one("res.partner", readonly=True)  # partner creado/reutilizado
-
-    sale_order_id = fields.Many2one("sale.order", readonly=True)
-=======
     partner_id = fields.Many2one("res.partner", string="Customer", ondelete="set null")
     guest_first_name = fields.Char(string="Guest First Name")
     guest_last_name = fields.Char(string="Guest Last Name")
@@ -156,33 +133,10 @@ class MotelReservation(models.Model):
             rec.base_total = base_total
             rec.surcharge_applied = surcharge
             rec.final_total = final_total
->>>>>>> HU-4
 
     @api.constrains("checkin_date", "checkout_date")
     def _check_dates(self):
         for rec in self:
-<<<<<<< HEAD
-            if rec.checkout_date and rec.checkin_date and rec.checkout_date <= rec.checkin_date:
-                raise ValidationError("La fecha de salida debe ser posterior a la de entrada.")
-
-    @api.constrains("room_id", "checkin_date", "checkout_date", "state")
-    def _check_overlap_confirmed(self):
-        """
-        Evita que una misma habitación tenga 2 reservas CONFIRMED traslapadas.
-        """
-        for rec in self:
-            if rec.state != "confirmed":
-                continue
-            domain = [
-                ("id", "!=", rec.id),
-                ("room_id", "=", rec.room_id.id),
-                ("state", "=", "confirmed"),
-                ("checkin_date", "<", rec.checkout_date),
-                ("checkout_date", ">", rec.checkin_date),
-            ]
-            if self.search_count(domain):
-                raise ValidationError("La habitación ya está reservada en ese rango de fechas.")
-=======
             if rec.checkin_date and rec.checkout_date and rec.checkout_date <= rec.checkin_date:
                 raise ValidationError("La fecha de salida debe ser posterior a la de entrada.")
 
@@ -215,4 +169,3 @@ class MotelReservation(models.Model):
             if vals.get("reference", "New") == "New":
                 vals["reference"] = self.env["ir.sequence"].next_by_code("motel.reservation") or "RES"
         return super().create(vals_list)
->>>>>>> HU-4
