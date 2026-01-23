@@ -12,6 +12,8 @@ class MotelReservation(models.Model):
     PRICE_PER_DAY = {"normal": 100.0, "premium": 200.0}
     LONG_STAY_MIN_DAYS = 6
     LONG_STAY_MULTIPLIER = 1.5
+    PET_FEE = 25.0          
+    WIFI_FEE_PER_DAY = 2.0  
 
     reference = fields.Char(
         string="Reference",
@@ -27,6 +29,8 @@ class MotelReservation(models.Model):
 
     checkin_date = fields.Date(string="Check-in", required=True)
     checkout_date = fields.Date(string="Check-out", required=True)
+    has_pets = fields.Boolean(string="Has Pets", default=False)
+    wants_wifi = fields.Boolean(string="Wants Wi-Fi", default=False)
 
     state = fields.Selection(
         [("draft", "Draft"), ("confirmed", "Confirmed"), ("cancelled", "Cancelled")],
@@ -72,6 +76,22 @@ class MotelReservation(models.Model):
         readonly=True,
     )
 
+    pet_fee = fields.Monetary(
+        string="Pet Fee",
+        currency_field="currency_id",
+        compute="_compute_pricing",
+        store=True,
+        readonly=True,
+    )
+
+    wifi_fee_total = fields.Monetary(
+        string="Wi-Fi Total",
+        currency_field="currency_id",
+        compute="_compute_pricing",
+        store=True,
+        readonly=True,
+    )
+
     base_total = fields.Monetary(
         string="Base Total",
         currency_field="currency_id",
@@ -95,20 +115,23 @@ class MotelReservation(models.Model):
         readonly=True,
     )
 
-    @api.depends("room_type_code", "checkin_date", "checkout_date")
+    @api.depends("room_type_code", "checkin_date", "checkout_date", "has_pets", "wants_wifi")
     def _compute_pricing(self):
         """
-        Calcula nights + pricing HU-04 de forma automática y consistente.
         - Normal: 100/día
         - Premium: 200/día
-        - >=6 noches => total * 1.5
+        - >=6 noches => subtotal * 1.5
+        - Mascotas: +25 fijo
+        - Wi-Fi: +2 por noche
         """
         for rec in self:
-            # Defaults seguros
+            # Defaults seguros (si algo falta, no quedan valores viejos)
             rec.nights = 0
             rec.base_price_per_day = 0.0
             rec.base_total = 0.0
             rec.surcharge_applied = False
+            rec.pet_fee = 0.0
+            rec.wifi_fee_total = 0.0
             rec.final_total = 0.0
 
             if not rec.checkin_date or not rec.checkout_date:
@@ -116,24 +139,28 @@ class MotelReservation(models.Model):
 
             nights = (rec.checkout_date - rec.checkin_date).days
             if nights <= 0:
-                # constraint levantará error al guardar
                 continue
 
             if rec.room_type_code not in rec.PRICE_PER_DAY:
-                # constraint levantará error al guardar
                 continue
 
             base_per_day = rec.PRICE_PER_DAY[rec.room_type_code]
             base_total = base_per_day * nights
+
             surcharge = nights >= rec.LONG_STAY_MIN_DAYS
-            final_total = base_total * rec.LONG_STAY_MULTIPLIER if surcharge else base_total
+            subtotal = base_total * rec.LONG_STAY_MULTIPLIER if surcharge else base_total
+
+            pet_fee = rec.PET_FEE if rec.has_pets else 0.0
+            wifi_total = (rec.WIFI_FEE_PER_DAY * nights) if rec.wants_wifi else 0.0
 
             rec.nights = nights
             rec.base_price_per_day = base_per_day
             rec.base_total = base_total
             rec.surcharge_applied = surcharge
-            rec.final_total = final_total
-
+            rec.pet_fee = pet_fee
+            rec.wifi_fee_total = wifi_total
+            rec.final_total = subtotal + pet_fee + wifi_total
+            
     @api.constrains("checkin_date", "checkout_date")
     def _check_dates(self):
         for rec in self:

@@ -189,7 +189,16 @@
         </p>
 
         <t t-if="pricing">
-          <div class="alert alert-info mt-3" role="alert">
+          <div class="alert alert-info mt-3" role="alert"
+            id="pricing_box"
+            t-att-data-nights="pricing.get('nights')"
+            t-att-data-base-per-day="pricing.get('base_per_day')"
+            t-att-data-base-total="pricing.get('base_total')"
+            t-att-data-surcharge="1 if pricing.get('surcharge_applied') else 0"
+            data-long-mult="1.5"
+            data-pet-flat="25"
+            data-wifi-per-night="2">
+
             <div class="d-flex justify-content-between flex-wrap gap-2">
               <span><strong>Tipo:</strong> <t t-esc="pricing.get('room_type')"/></span>
               <span><strong>Noches:</strong> <t t-esc="pricing.get('nights')"/></span>
@@ -205,12 +214,35 @@
                 <strong>Recargo estancia larga:</strong>
                 <t t-esc="'Sí (+50%)' if pricing.get('surcharge_applied') else 'No'"/>
               </span>
-              <span class="fs-5">
-                <strong>Total:</strong> $<t t-esc="pricing.get('final_total')"/>
+              <span class="fs-6">
+                <strong>Subtotal:</strong> $<span id="ui_subtotal">0.00</span>
               </span>
             </div>
+            
+            <hr class="my-2"/>
+
+            <!-- Extras: uno debajo del otro -->
+            <div class="d-flex flex-column gap-1">
+              <div class="d-flex justify-content-between">
+                <span><strong>Mascotas:</strong></span>
+                <span>$<span id="ui_pet_fee">0.00</span></span>
+              </div>
+
+              <div class="d-flex justify-content-between">
+                <span><strong>Wi-Fi:</strong></span>
+                <span>$<span id="ui_wifi_fee">0.00</span></span>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+              <span class="fs-5">
+                <strong>Total final:</strong> $<span id="ui_final_total">0.00</span>
+              </span>
+            </div>
+
           </div>
         </t>
+
         <t t-else="">
           <div class="alert alert-warning mt-3" role="alert">
             No se pudo calcular el precio. Verifica fechas y tipo de habitación.
@@ -278,6 +310,30 @@
               <small class="text-danger" t-if="errors and errors.get('phone')">
                 <t t-esc="errors.get('phone')"/>
               </small>
+            </div>
+
+            <div class="col-12">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                  <h5 class="mb-3">Extras</h5>
+
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="has_pets" id="has_pets"
+                          t-att-checked="prefill.get('has_pets') if prefill else False"/>
+                    <label class="form-check-label" for="has_pets">
+                      Llevo mascota (+ $25.00 por reserva)
+                    </label>
+                  </div>
+
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="wants_wifi" id="wants_wifi"
+                          t-att-checked="prefill.get('wants_wifi') if prefill else False"/>
+                    <label class="form-check-label" for="wants_wifi">
+                      Quiero Wi-Fi en la habitación (+ $2.00 por noche)
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="col-12">
@@ -382,6 +438,11 @@
         <field name="checkin_date"/>
         <field name="checkout_date"/>
         <field name="nights"/>
+        <field name="has_pets"/>
+        <field name="wants_wifi"/>
+        <field name="pet_fee"/>
+        <field name="wifi_fee_total"/>
+
         <field name="final_total"/>
         <field name="partner_id"/>
         <field name="sale_order_id"/>

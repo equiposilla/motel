@@ -1,8 +1,9 @@
 (function () {
   "use strict";
 
-  
+  // ============================================================
   // Utils
+  // ============================================================
   function qs(sel, root) {
     return (root || document).querySelector(sel);
   }
@@ -47,7 +48,9 @@
     };
   }
 
-
+  // ============================================================
+  // API
+  // ============================================================
   async function refreshAvailability(checkin, checkout) {
     const url =
       `/motels/availability_http?checkin=${encodeURIComponent(checkin)}` +
@@ -66,18 +69,21 @@
       throw new Error("Respuesta inválida del servidor (no JSON).");
     }
 
-    if (!r.ok) throw new Error((data && data.error) || "Error consultando disponibilidad.");
+    if (!r.ok) {
+      throw new Error((data && data.error) || "Error consultando disponibilidad.");
+    }
     return data.motels || [];
   }
 
-  
+  // ============================================================
+  // STATE (/motels)
+  // ============================================================
   const STATE = {
-    byMotelId: Object.create(null), 
-    boundCards: new WeakSet(),      
+    byMotelId: Object.create(null),
+    boundCards: new WeakSet(),
     checkinEl: null,
     checkoutEl: null,
   };
-
 
   function setReserveLink(btn, motelId, roomType, checkin, checkout) {
     const url =
@@ -100,7 +106,7 @@
   }
 
   // -------------------------
-  // Selection helpers
+  // Selection helpers (/motels)
   // -------------------------
   function getSelectedType(card) {
     return card.getAttribute("data-selected-room-type") || null;
@@ -154,7 +160,6 @@
     const selected = getSelectedType(card) || "normal";
     const { checkinValue, checkoutValue } = getCurrentDates();
 
-    // Si las fechas están mal, no permitir reservar
     const err = validateDates(checkinValue, checkoutValue);
     if (err) {
       disableLink(btn);
@@ -165,7 +170,6 @@
     const selectedBucket = selected === "premium" ? m.premium : m.normal;
     const available = Number((selectedBucket && selectedBucket.available) || 0);
 
-    // Texto del botón con total calculado en backend
     const typeLabel = selected === "premium" ? "Premium" : "Normal";
     const total = Number((selectedBucket && selectedBucket.final_total) || 0);
     btn.textContent = `Reservar (${typeLabel}) - ${formatMoney(total)}`;
@@ -179,7 +183,6 @@
 
     markSelected(card, selected);
 
-    // Reflejar noches en el UI con el valor del backend
     qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
   }
 
@@ -190,10 +193,8 @@
     const motelId = Number(motelInput.value);
     if (!motelId) return;
 
-    // Guardar el payload más reciente (clave anti-bug)
     STATE.byMotelId[motelId] = m;
 
-    // Pintar precios/disp (payload nuevo)
     const priceNormal = qs("[data-price-normal]", card);
     const pricePremium = qs("[data-price-premium]", card);
     const availNormal = qs("[data-available-normal]", card);
@@ -204,22 +205,18 @@
     if (availNormal) availNormal.textContent = String((m.normal && m.normal.available) || 0);
     if (availPremium) availPremium.textContent = String((m.premium && m.premium.available) || 0);
 
-    // Totales
     const totalNormal = qs("[data-total-normal]", card);
     const totalPremium = qs("[data-total-premium]", card);
     if (totalNormal) totalNormal.textContent = formatMoney(m.normal && m.normal.final_total);
     if (totalPremium) totalPremium.textContent = formatMoney(m.premium && m.premium.final_total);
 
-    // Recargo
     const surN = qs("[data-surcharge-normal]", card);
     const surP = qs("[data-surcharge-premium]", card);
     if (surN) surN.classList.toggle("d-none", !(m.normal && m.normal.surcharge));
     if (surP) surP.classList.toggle("d-none", !(m.premium && m.premium.surcharge));
 
-    // Noches
     qsa("[data-nights]", card).forEach((el) => (el.textContent = String(m.nights || 0)));
 
-    // Status
     const status = qs("[data-status]", card);
     if (status) {
       if (!m.has_availability) {
@@ -234,13 +231,11 @@
       }
     }
 
-    // Selección por defecto
     if (m.has_availability) {
       const sel = defaultSelectionForCard(card, m);
       setSelectedType(card, sel);
       markSelected(card, sel);
     } else {
-      // No hay disponibilidad
       const btn = qs("[data-action-reserve]", card);
       if (btn) {
         btn.textContent = "Reservar";
@@ -250,10 +245,7 @@
       return;
     }
 
-    // Actualiza botón en base a selección actual + fechas actuales
     updateReserveButton(card, motelId);
-
-    // Bind eventos SOLO una vez (sin closures con m/checkin/checkout)
     bindCardEventsOnce(card, motelId);
   }
 
@@ -304,72 +296,125 @@
     });
   }
 
+  // ============================================================
+  // /motels/reserve - Live pricing for Extras (pets + wifi)
+  // ============================================================
+  function initReserveLivePricing() {
+    const box = document.getElementById("pricing_box");
+    if (!box) return; // Solo /motels/reserve
+
+    const cbPets = document.getElementById("has_pets");
+    const cbWifi = document.getElementById("wants_wifi");
+    if (!cbPets || !cbWifi) return;
+
+    // Datos base (del backend) expuestos como data-*
+    const nights = Number(box.dataset.nights || 0);
+    const baseTotal = Number(box.dataset.baseTotal || 0);
+    const surcharge = String(box.dataset.surcharge || "0") === "1";
+
+    const longMult = Number(box.dataset.longMult || 1.5);
+    const petFlat = Number(box.dataset.petFlat || 25);
+    const wifiPerNight = Number(box.dataset.wifiPerNight || 2);
+
+    const elSubtotal = document.getElementById("ui_subtotal");
+    const elPet = document.getElementById("ui_pet_fee");
+    const elWifi = document.getElementById("ui_wifi_fee");
+    const elFinal = document.getElementById("ui_final_total");
+
+    function money(v) {
+      return Number(v || 0).toFixed(2);
+    }
+
+    function recompute() {
+      const petFee = cbPets.checked ? petFlat : 0;
+      const wifiFee = cbWifi.checked ? wifiPerNight * nights : 0;
+
+      const subtotal = surcharge ? baseTotal * longMult : baseTotal;
+      const finalTotal = subtotal + petFee + wifiFee;
+
+      if (elSubtotal) elSubtotal.textContent = money(subtotal);
+      if (elPet) elPet.textContent = money(petFee);
+      if (elWifi) elWifi.textContent = money(wifiFee);
+      if (elFinal) elFinal.textContent = money(finalTotal);
+    }
+
+    cbPets.addEventListener("change", recompute);
+    cbWifi.addEventListener("change", recompute);
+
+    // Estado inicial (si vienen pre-chequeados)
+    recompute();
+  }
+
+  // ============================================================
+  // Boot
+  // ============================================================
   document.addEventListener("DOMContentLoaded", () => {
+    // 1) /motels: disponibilidad + cards
     const root = document.getElementById("motel_availability_root");
-    if (!root) return;
+    if (root) {
+      const checkin = qs("#checkin");
+      const checkout = qs("#checkout");
+      const errorBox = qs("#date_error");
+      if (checkin && checkout && errorBox) {
+        STATE.checkinEl = checkin;
+        STATE.checkoutEl = checkout;
 
-    const checkin = qs("#checkin");
-    const checkout = qs("#checkout");
-    const errorBox = qs("#date_error");
-    if (!checkin || !checkout || !errorBox) return;
+        const t = todayLocalISO();
+        if (!checkin.value) checkin.value = t;
+        if (!checkout.value) checkout.value = addDaysISO(checkin.value, 1);
 
-    STATE.checkinEl = checkin;
-    STATE.checkoutEl = checkout;
+        checkin.min = t;
+        checkout.min = addDaysISO(checkin.value, 1);
 
-    const t = todayLocalISO();
+        function showError(msg) {
+          if (!msg) {
+            errorBox.classList.add("d-none");
+            errorBox.textContent = "";
+          } else {
+            errorBox.classList.remove("d-none");
+            errorBox.textContent = msg;
+          }
+        }
 
-    if (!checkin.value) checkin.value = t;
-    if (!checkout.value) checkout.value = addDaysISO(checkin.value, 1);
+        async function onChangeImpl() {
+          checkout.min = addDaysISO(checkin.value, 1);
+          if (checkout.value <= checkin.value) {
+            checkout.value = addDaysISO(checkin.value, 1);
+          }
 
-    checkin.min = t;
-    checkout.min = addDaysISO(checkin.value, 1);
+          const err = validateDates(checkin.value, checkout.value);
+          if (err) {
+            showError(err);
+            qsa("#motels_grid .card").forEach((card) => {
+              const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
+              if (motelId) updateReserveButton(card, motelId);
+            });
+            return;
+          }
 
-    function showError(msg) {
-      if (!msg) {
-        errorBox.classList.add("d-none");
-        errorBox.textContent = "";
-      } else {
-        errorBox.classList.remove("d-none");
-        errorBox.textContent = msg;
+          showError(null);
+
+          try {
+            const motels = await refreshAvailability(checkin.value, checkout.value);
+            renderMotels(motels);
+            qsa("#motels_grid .card").forEach((card) => {
+              const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
+              if (motelId) updateReserveButton(card, motelId);
+            });
+          } catch (e) {
+            showError((e && e.message) || "Error consultando disponibilidad.");
+          }
+        }
+
+        const onChange = debounce(onChangeImpl, 150);
+        checkin.addEventListener("change", onChange);
+        checkout.addEventListener("change", onChange);
+
+        onChangeImpl();
       }
     }
 
-    async function onChangeImpl() {
-      
-      checkout.min = addDaysISO(checkin.value, 1);
-      if (checkout.value <= checkin.value) {
-        checkout.value = addDaysISO(checkin.value, 1);
-      }
-
-      const err = validateDates(checkin.value, checkout.value);
-      if (err) {
-        showError(err);
-        qsa("#motels_grid .card").forEach((card) => {
-          const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
-          if (motelId) updateReserveButton(card, motelId);
-        });
-        return;
-      }
-
-      showError(null);
-
-      try {
-        const motels = await refreshAvailability(checkin.value, checkout.value);
-        renderMotels(motels);
-        qsa("#motels_grid .card").forEach((card) => {
-          const motelId = Number(qs("input[data-motel-id]", card)?.value || 0);
-          if (motelId) updateReserveButton(card, motelId);
-        });
-      } catch (e) {
-        showError((e && e.message) || "Error consultando disponibilidad.");
-      }
-    }
-
-    const onChange = debounce(onChangeImpl, 150);
-
-    checkin.addEventListener("change", onChange);
-    checkout.addEventListener("change", onChange);
-
-    onChangeImpl();
+    // 2) /motels/reserve: pricing live extras
+    initReserveLivePricing();
   });
 })();

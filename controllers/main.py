@@ -56,7 +56,7 @@ class MotelAvailabilityController(http.Controller):
             return None, None, "No se permiten fechas en el pasado."
         return d_in, d_out, None
 
-    def _compute_price(self, room_type_code, d_in, d_out):
+    def _compute_price(self, room_type_code, d_in, d_out, has_pets=False, wants_wifi=False):
         if room_type_code not in ("normal", "premium"):
             return None, "Tipo de habitación inválido."
 
@@ -66,8 +66,15 @@ class MotelAvailabilityController(http.Controller):
 
         base_per_day = self.PRICE_PER_DAY[room_type_code]
         base_total = base_per_day * nights
+
         surcharge = nights >= self.LONG_STAY_MIN_DAYS
-        final_total = base_total * self.LONG_STAY_MULTIPLIER if surcharge else base_total
+        subtotal = base_total * self.LONG_STAY_MULTIPLIER if surcharge else base_total
+
+        pet_fee = 25.0 if has_pets else 0.0
+        wifi_per_day = 2.0 if wants_wifi else 0.0
+        wifi_total = wifi_per_day * nights
+
+        final_total = subtotal + pet_fee + wifi_total
 
         return {
             "room_type": room_type_code,
@@ -75,7 +82,13 @@ class MotelAvailabilityController(http.Controller):
             "base_per_day": base_per_day,
             "base_total": base_total,
             "surcharge_applied": surcharge,
+            "subtotal_after_surcharge": subtotal,
+            "pet_fee": pet_fee,
+            "wifi_per_day": wifi_per_day,
+            "wifi_total": wifi_total,
             "final_total": final_total,
+            "has_pets": bool(has_pets),
+            "wants_wifi": bool(wants_wifi),
         }, None
 
     def _get_room_types(self):
@@ -319,9 +332,12 @@ class MotelAvailabilityController(http.Controller):
         # 4) Validar fechas + calcular pricing
         d_in, d_out, err = self._validate_dates(checkin, checkout)
 
+        has_pets = (kw.get("has_pets") in ("1", "true", "on", "yes"))
+        wants_wifi = (kw.get("wants_wifi") in ("1", "true", "on", "yes"))
+
         pricing = None
         if not err:
-            pricing, perr = self._compute_price(room_type, d_in, d_out)
+            pricing, perr = self._compute_price(room_type, d_in, d_out, has_pets=has_pets, wants_wifi=wants_wifi)
             if perr:
                 err = perr
 
@@ -334,9 +350,11 @@ class MotelAvailabilityController(http.Controller):
             "checkin": checkin,
             "checkout": checkout,
             "pricing": pricing,
+            "has_pets": has_pets, 
+            "wants_wifi": wants_wifi,
             "login_url": "/web/login",
             "errors": {},   # en GET no hay errors de form
-            "prefill": {},
+            "prefill": {"has_pets": has_pets, "wants_wifi": wants_wifi},
         })
 
 
@@ -377,6 +395,8 @@ class MotelAvailabilityController(http.Controller):
         email = (post.get("email") or "").strip().lower()
         phone = (post.get("phone") or "").strip()
         terms = post.get("terms") == "on"
+        has_pets = post.get("has_pets") == "on"
+        wants_wifi = post.get("wants_wifi") == "on"
 
         motel_id = (post.get("motel_id") or "").strip()
         room_type = (post.get("room_type") or "").strip()
@@ -411,7 +431,7 @@ class MotelAvailabilityController(http.Controller):
 
         pricing = None
         if d_in and d_out and room_type in ("normal", "premium"):
-            pricing, perr = self._compute_price(room_type, d_in, d_out)
+            pricing, perr = self._compute_price(room_type, d_in, d_out, has_pets=has_pets, wants_wifi=wants_wifi)
             if perr:
                 errors["pricing"] = perr
                 pricing = None
@@ -425,7 +445,7 @@ class MotelAvailabilityController(http.Controller):
                 "pricing": pricing,
                 "login_url": "/web/login",
                 "errors": errors,
-                "prefill": {"first": first, "last": last, "email": email, "phone": phone, "terms": terms},
+                "prefill": {"first": first, "last": last, "email": email, "phone": phone, "terms": terms , "has_pets": has_pets, "wants_wifi": wants_wifi},
             })
 
         try:
@@ -468,6 +488,8 @@ class MotelAvailabilityController(http.Controller):
                     "guest_email": email,
                     "guest_phone": phone,
                     "terms_accepted": True,
+                    "has_pets": has_pets,
+                    "wants_wifi": wants_wifi,
                 })
 
             return request.redirect(f"/motels/confirmation/{reservation.reference}")
