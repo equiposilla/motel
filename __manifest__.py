@@ -19,12 +19,12 @@
         "views/templates.xml",   # incluye qweb + vistas backend que agregamos
     ],
     "assets": {
-        # Tu /motels suele usar frontend_minimal
+        
         "web.assets_frontend_minimal": [
             "motel_availability/static/src/js/motel_availability.js",
             "motel_availability/static/src/css/motel_availability.css",
         ],
-        # Por si alguna página cae en el bundle normal
+        
         "web.assets_frontend": [
             "motel_availability/static/src/js/motel_availability.js",
             "motel_availability/static/src/css/motel_availability.css",
