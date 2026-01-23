@@ -1,12 +1,4 @@
-<<<<<<< HEAD
-.room-choice {
-  cursor: pointer;
-}
 
-.room-choice.border-primary {
-  border-width: 2px !important;
-=======
-/* HERO */
 .motel-hero{
   position: relative;
   min-height: 420px;
@@ -68,7 +60,7 @@
   font-weight: 700;
 }
 
-/* Room selector (lo que ya venías usando) */
+/* Room selector (lo que ya venía usando) */
 .room-choice { cursor: pointer; }
 .room-choice.border-primary { border-width: 2px !important; }
 
@@ -79,5 +71,4 @@
 #motels_grid .card:hover{
   transform: translateY(-2px);
   transition: transform .15s ease;
->>>>>>> HU-4
 }

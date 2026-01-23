@@ -25,7 +25,7 @@
               <div class="alert alert-warning d-none" id="date_error"></div>
             </div>
           </div>
-        </div>
+        </div>  
       </section>
 
       <section class="container my-4" id="motel_availability_root">
@@ -48,9 +48,7 @@
                   <div class="d-flex justify-content-between border rounded p-2 mb-2">
                     <div>
                       <div class="fw-semibold">Normal</div>
-                      <div class="text-muted small">
-                        Precio/noche: <span data-price-normal="1">—</span>
-                      </div>
+                      <div class="text-muted small">Precio/noche: <span data-price-normal="1">—</span></div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-normal="1">—</div>
@@ -61,9 +59,7 @@
                   <div class="d-flex justify-content-between border rounded p-2 mb-3">
                     <div>
                       <div class="fw-semibold">Premium</div>
-                      <div class="text-muted small">
-                        Precio/noche: <span data-price-premium="1">—</span>
-                      </div>
+                      <div class="text-muted small">Precio/noche: <span data-price-premium="1">—</span></div>
                     </div>
                     <div class="text-end">
                       <div class="fw-semibold" data-available-premium="1">—</div>
@@ -77,7 +73,7 @@
                     <!-- No se implementa reserva (fuera de alcance) -->
                     <button class="btn btn-primary" data-action-reserve="1" disabled="disabled">
                       Reservar
-                    </button>
+                    </a>
                   </div>
 
                   <input type="hidden"
