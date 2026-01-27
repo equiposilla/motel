@@ -1,0 +1,230 @@
+
+<odoo>
+
+    <!-- =========================
+        BACKEND VIEWS (SIN CAMBIOS)
+        ========================= -->
+    <record id="view_motel_reservation_list" model="ir.ui.view">
+        <field name="name">motel.reservation.list</field>
+        <field name="model">motel.reservation</field>
+        <field name="arch" type="xml">
+        <list string="Reservations">
+            <field name="reference"/>
+            <field name="state"/>
+            <field name="motel_id"/>
+            <field name="room_id"/>
+            <field name="room_type_code"/>
+            <field name="checkin_date"/>
+            <field name="checkout_date"/>
+            <field name="nights"/>
+            <field name="has_pets"/>
+            <field name="wants_wifi"/>
+            <field name="pet_fee"/>
+            <field name="wifi_fee_total"/>
+            <field name="channel"/>
+            <field name="payment_method"/>
+            <field name="payment_state"/>
+            <field name="final_total"/>
+            <field name="partner_id"/>
+            <field name="sale_order_id"/>
+        </list>
+        </field>
+    </record>
+
+    <record id="view_motel_reservation_form" model="ir.ui.view">
+        <field name="name">motel.reservation.form</field>
+        <field name="model">motel.reservation</field>
+        <field name="arch" type="xml">
+        <form string="Reservation">
+            <sheet>
+            <header>
+                <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+                <button
+                    name="action_register_on_site_payment"
+                    type="object"
+                    string="Registrar cobro"
+                    class="btn-primary"
+                    invisible="channel != 'reception'
+                            or payment_method != 'on_site'
+                            or payment_state == 'paid'"/>
+            </header>
+
+            <group>
+                <group>
+                <field name="reference" readonly="1"/>
+                <field name="attempt_uuid" readonly="1"/>
+                <field name="motel_id" readonly="1"/>
+                <field name="room_id"/>
+                <field name="room_type_code"/>
+                </group>
+                <group>
+                <field name="checkin_date"/>
+                <field name="checkout_date"/>
+                <field name="nights" readonly="1"/>
+                <field name="currency_id" groups="base.group_system"/>
+                </group>
+            </group>
+
+            <notebook>
+                <page string="Guest">
+                <group>
+                    <group>
+                    <field name="partner_id"/>
+                    <field name="guest_first_name"/>
+                    <field name="guest_last_name"/>
+                    </group>
+                    <group>
+                    <field name="guest_email"/>
+                    <field name="guest_phone"/>
+                    <field name="terms_accepted"/>
+                    </group>
+                </group>
+                </page>
+
+                <page string="Pricing">
+                <group>
+                    <group>
+                    <field name="base_price_per_day" readonly="1"/>
+                    <field name="base_total" readonly="1"/>
+                    </group>
+                    <group>
+                    <field name="surcharge_applied" readonly="1"/>
+                    <field name="final_total" readonly="1"/>
+                    </group>
+                </group>
+                </page>
+
+                <page string="Sales">
+                <group>
+                    <field name="sale_order_id"/>
+                </group>
+                </page>
+
+                <page string="Payment">
+                <group>
+                    <group>
+                    <field name="channel"/>
+                    <field name="payment_method"/>
+                    <field name="payment_state" readonly="1"/>
+                    </group>
+                    <group>
+                    <field name="payment_reference" readonly="1"/>
+                    <field name="payment_correlation_id" readonly="1"/>
+                    <field name="paid_at" readonly="1"/>
+                    <field name="paid_by_user_id" readonly="1"/>
+                    </group>
+                </group>
+                </page>
+            </notebook>
+            </sheet>
+        </form>
+        </field>
+    </record>
+    
+
+    <record id="action_motel_reservation" model="ir.actions.act_window">
+        <field name="name">Reservations</field>
+        <field name="res_model">motel.reservation</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+        <p class="o_view_nocontent_smiling_face">
+            Crea y gestiona reservas de habitaciones.
+        </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
+    <menuitem id="menu_motel_reservation"
+                name="Reservations"
+                parent="menu_motel_root"
+                action="action_motel_reservation"
+                sequence="10"/>
+
+
+
+        <!-- =========================
+        BACKEND: PAYMENT LOG (motel.payment.log)
+        ========================= -->
+
+    <record id="view_motel_payment_log_list" model="ir.ui.view">
+        <field name="name">motel.payment.log.list</field>
+        <field name="model">motel.payment.log</field>
+        <field name="arch" type="xml">
+        <list string="Payment Logs" create="0" edit="0">
+            <field name="create_date"/>
+            <field name="reservation_id"/>
+            <field name="channel"/>
+            <field name="action"/>
+            <field name="state"/>
+            <field name="correlation_id"/>
+            <field name="provider_reference"/>
+            <field name="performed_by_user_id"/>
+            <field name="note"/>
+        </list>
+        </field>
+    </record>
+
+    <record id="view_motel_payment_log_form" model="ir.ui.view">
+        <field name="name">motel.payment.log.form</field>
+        <field name="model">motel.payment.log</field>
+        <field name="arch" type="xml">
+        <form string="Payment Log" create="0" edit="0">
+            <sheet>
+            <group>
+                <group>
+                <field name="reservation_id"/>
+                <field name="channel"/>
+                <field name="action"/>
+                <field name="state"/>
+                </group>
+                <group>
+                <field name="create_date" readonly="1"/>
+                <field name="performed_by_user_id"/>
+                <field name="correlation_id"/>
+                <field name="provider_reference"/>
+                </group>
+            </group>
+
+            <group>
+                <field name="note"/>
+            </group>
+            </sheet>
+        </form>
+        </field>
+    </record>
+
+    <record id="view_motel_payment_log_search" model="ir.ui.view">
+    <field name="name">motel.payment.log.search</field>
+    <field name="model">motel.payment.log</field>
+    <field name="arch" type="xml">
+        <search string="Payment Logs">
+        <field name="reservation_id"/>
+        <field name="correlation_id"/>
+        <field name="provider_reference"/>
+        <field name="performed_by_user_id"/>
+
+        <filter string="Web" name="filter_web" domain="[('channel','=','web')]"/>
+        <filter string="Reception" name="filter_reception" domain="[('channel','=','reception')]"/>
+
+        <separator/>
+
+        <filter string="Paid" name="filter_paid" domain="[('state','=','paid')]"/>
+        <filter string="Pending" name="filter_pending" domain="[('state','=','pending')]"/>
+        <filter string="Failed" name="filter_failed" domain="[('state','=','failed')]"/>
+        </search>
+    </field>
+    </record>
+
+    <record id="action_motel_payment_log" model="ir.actions.act_window">
+    <field name="name">Payment Logs</field>
+    <field name="res_model">motel.payment.log</field>
+    <field name="view_mode">list,form</field>
+    <field name="search_view_id" ref="motel_availability.view_motel_payment_log_search"/>
+    </record>
+
+    <menuitem id="menu_motel_payment_log"
+            name="Payment Logs"
+            parent="menu_motel_root"
+            action="action_motel_payment_log"
+            sequence="20"/>
+</odoo>

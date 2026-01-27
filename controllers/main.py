@@ -549,7 +549,6 @@ class MotelAvailabilityController(http.Controller):
         if not reservation:
             return request.not_found()
 
-        # CA-01
         if reservation.channel == "web" and reservation.payment_method != "advance":
             return request.render("motel_availability.reserve_error", {
                 "message": "En la web solo se permite pago anticipado.",
