@@ -8,7 +8,8 @@
     "depends": [
         "base",     
         "website",  
-        "sale",     
+        "sale",
+        "payment",     
         # "account", # para generar facturas desde la SO una vez implementado el pago
         # "mail",    # implemntado el pago y la facturación enviar facturas por email
     ],

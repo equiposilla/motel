@@ -5,3 +5,7 @@ access_motel_room_type_public,motel.room.type public,model_motel_room_type,base.
 access_motel_reservation_user,motel.reservation user,model_motel_reservation,base.group_user,1,1,1,1
 access_motel_reservation_manager,motel_reservation_manager,model_motel_reservation,,1,1,1,1
 access_motel_rate_limit,motel.rate.limit,model_motel_rate_limit,,1,0,1,0
+
+access_motel_payment_log_user,motel.payment.log user,model_motel_payment_log,base.group_user,1,0,1,0
+access_motel_payment_log_manager,motel.payment.log manager,model_motel_payment_log,,1,1,1,1
+

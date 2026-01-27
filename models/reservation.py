@@ -115,6 +115,39 @@ class MotelReservation(models.Model):
         readonly=True,
     )
 
+    channel = fields.Selection(
+        [("web", "Web"), ("reception", "Reception")],
+        string="Channel",
+        required=True,
+        default="web",
+        index=True,
+    )
+
+    payment_method = fields.Selection(
+        [("advance", "Pay in advance"), ("on_site", "Pay on site")],
+        string="Payment Method",
+        required=True,
+        default="advance",
+        index=True,
+    )
+
+    payment_state = fields.Selection(
+        [
+            ("pending", "Pending payment"),   # recepción / on_site
+            ("paid", "Paid"),                 # web pago ok / recepción cobrada
+            ("failed", "Payment failed"),     # web pago fallido
+        ],
+        string="Payment Status",
+        required=True,
+        default="failed",  # web todavía no pagó hasta que inicie pago
+        index=True,
+    )
+
+    payment_reference = fields.Char(string="Payment Reference", copy=False, index=True)
+    payment_correlation_id = fields.Char(string="Correlation ID", copy=False, index=True)
+    paid_at = fields.Datetime(string="Paid At", readonly=True, copy=False)
+    paid_by_user_id = fields.Many2one("res.users", string="Paid By", readonly=True, copy=False)
+
     @api.depends("room_type_code", "checkin_date", "checkout_date", "has_pets", "wants_wifi")
     def _compute_pricing(self):
         """
@@ -189,6 +222,57 @@ class MotelReservation(models.Model):
                 # nights es compute+store; si hay inconsistencia, es señal de corrupción
                 if rec.nights != expected:
                     raise ValidationError("El número de noches no coincide con las fechas.")
+
+    @api.constrains("channel", "payment_method")
+    def _check_channel_payment_rules(self):
+        for rec in self:
+            if rec.channel == "web" and rec.payment_method != "advance":
+                raise ValidationError("En la web solo se permite pago anticipado.")
+
+    def action_mark_paid(self, reference=None, correlation_id=None, by_user=None):
+        """Marca pagado + auditoría (CA-04/05)."""
+        self.ensure_one()
+        self.write({
+            "payment_state": "paid",
+            "payment_reference": reference or self.payment_reference,
+            "payment_correlation_id": correlation_id or self.payment_correlation_id,
+            "paid_at": fields.Datetime.now(),
+            "paid_by_user_id": (by_user or self.env.user).id,
+        })
+        # Si venía de web, ahora sí confirmamos la reserva (CA-02)
+        if self.state != "confirmed":
+            self.state = "confirmed"
+
+    def action_mark_payment_failed(self, correlation_id=None):
+        self.ensure_one()
+        self.write({
+            "payment_state": "failed",
+            "payment_correlation_id": correlation_id or self.payment_correlation_id,
+        })
+
+def action_register_on_site_payment(self):
+    """Recepción cobra y marca pagado (CA-03/04/05)."""
+    for rec in self:
+        if rec.channel != "reception" or rec.payment_method != "on_site":
+            raise ValidationError("Solo aplica a reservas de recepción con pago en sitio.")
+        if rec.payment_state != "pending":
+            continue
+
+        correlation_id = rec.payment_correlation_id or f"REC-{uuid.uuid4().hex[:12].upper()}"
+        reference = rec.payment_reference or f"REC-CASH-{rec.reference}"
+
+        rec.action_mark_paid(reference=reference, correlation_id=correlation_id, by_user=self.env.user)
+
+        self.env["motel.payment.log"].sudo().create({
+            "reservation_id": rec.id,
+            "channel": "reception",
+            "action": "reception_collect",
+            "state": "paid",
+            "correlation_id": correlation_id,
+            "provider_reference": reference,
+            "performed_by_user_id": self.env.user.id,
+            "note": "Cobro registrado en recepción.",
+        })
 
     @api.model_create_multi
     def create(self, vals_list):

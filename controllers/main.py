@@ -403,6 +403,14 @@ class MotelAvailabilityController(http.Controller):
         checkin = (post.get("checkin") or "").strip()
         checkout = (post.get("checkout") or "").strip()
 
+        payment_method = (post.get("payment_method") or "advance").strip()
+        # CA-01: web solo anticipado
+        if payment_method != "advance":
+            return request.render("motel_availability.reserve_error", {
+                "message": "En la web solo se permite pago anticipado.",
+                "attempt_uuid": attempt_uuid,
+            })
+
         errors = {}
         if not first:
             errors["first_name"] = "Nombre(s) es obligatorio."
@@ -470,6 +478,7 @@ class MotelAvailabilityController(http.Controller):
                     pricing=pricing,
                     attempt_uuid=attempt_uuid,
                 )
+                correlation_id = f"WEB-{uuid.uuid4().hex[:12].upper()}"
 
                 # 3) Reserva vinculada a partner + SO
                 reservation = request.env["motel.reservation"].sudo().create({
@@ -477,7 +486,7 @@ class MotelAvailabilityController(http.Controller):
                     "room_id": room.id,
                     "checkin_date": d_in,
                     "checkout_date": d_out,
-                    "state": "confirmed",
+                    "state": "draft",
                     "room_type_code": room_type,
 
                     "partner_id": partner.id,
@@ -490,9 +499,23 @@ class MotelAvailabilityController(http.Controller):
                     "terms_accepted": True,
                     "has_pets": has_pets,
                     "wants_wifi": wants_wifi,
+                    "channel": "web",
+                    "payment_method": "advance",
+                    "payment_state": "pending",
+                    "payment_correlation_id": correlation_id,
                 })
 
-            return request.redirect(f"/motels/confirmation/{reservation.reference}")
+                request.env["motel.payment.log"].sudo().create({
+                "reservation_id": reservation.id,
+                "channel": "web",
+                "action": "web_tx",
+                "state": "pending",
+                "correlation_id": correlation_id,
+                "performed_by_user_id": request.env.user.id if request.env.user else False,
+                "note": "Checkout web iniciado; pendiente de pago anticipado.",
+                })
+
+            return request.redirect(f"/motels/pay/{reservation.attempt_uuid}")
             
 
         except Exception as e:
@@ -501,6 +524,76 @@ class MotelAvailabilityController(http.Controller):
                 "message": f"No se pudo confirmar la reserva: {e}",
                 "attempt_uuid": attempt_uuid,
             })
+
+
+    @http.route("/motels/pay/<string:attempt_uuid>", type="http", auth="public", website=True, sitemap=False)
+    def pay_page(self, attempt_uuid, **kw):
+        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
+        if not reservation:
+            return request.not_found()
+            # CA-01 bloqueo duro
+        if reservation.channel == "web" and reservation.payment_method != "advance":
+            return request.render("motel_availability.reserve_error", {
+                "message": "En la web solo se permite pago anticipado.",
+                "attempt_uuid": attempt_uuid,
+            })
+
+        return request.render("motel_availability.payment_page", {"reservation": reservation})
+
+    @http.route("/motels/pay/submit", type="http", auth="public", website=True, methods=["POST"], csrf=True)
+    def pay_submit(self, **post):
+        attempt_uuid = post.get("attempt_uuid")
+        outcome = (post.get("outcome") or "success").strip()  # demo: success | fail
+
+        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
+        if not reservation:
+            return request.not_found()
+
+        # CA-01
+        if reservation.channel == "web" and reservation.payment_method != "advance":
+            return request.render("motel_availability.reserve_error", {
+                "message": "En la web solo se permite pago anticipado.",
+                "attempt_uuid": attempt_uuid,
+            })
+
+        correlation_id = reservation.payment_correlation_id or f"WEB-{uuid.uuid4().hex[:12].upper()}"
+        gateway_ref = f"GW-{uuid.uuid4().hex[:10].upper()}"
+
+        if outcome == "success":
+            reservation.action_mark_paid(reference=gateway_ref, correlation_id=correlation_id, by_user=request.env.user)
+
+            request.env["motel.payment.log"].sudo().create({
+                "reservation_id": reservation.id,
+                "channel": "web",
+                "action": "web_tx",
+                "state": "paid",
+                "correlation_id": correlation_id,
+                "provider_reference": gateway_ref,
+                "performed_by_user_id": request.env.user.id if request.env.user else False,
+                "note": "Pago anticipado web exitoso.",
+            })
+            return request.redirect(f"/motels/confirmation/{reservation.reference}")
+
+        # fail
+        reservation.action_mark_payment_failed(correlation_id=correlation_id)
+        request.env["motel.payment.log"].sudo().create({
+            "reservation_id": reservation.id,
+            "channel": "web",
+            "action": "web_tx",
+            "state": "failed",
+            "correlation_id": correlation_id,
+            "provider_reference": "",
+            "performed_by_user_id": request.env.user.id if request.env.user else False,
+            "note": "Pago anticipado web fallido (simulado).",
+        })
+        return request.redirect(f"/motels/pay_failed/{reservation.attempt_uuid}")
+    
+    @http.route("/motels/pay_failed/<string:attempt_uuid>", type="http", auth="public", website=True, sitemap=False)
+    def pay_failed(self, attempt_uuid, **kw):
+        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
+        if not reservation:
+            return request.not_found()
+        return request.render("motel_availability.payment_failed_page", {"reservation": reservation})
 
 
     @http.route("/motels/confirmation/<string:reference>", type="http", auth="public", website=True, sitemap=False)
