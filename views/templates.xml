@@ -16,11 +16,11 @@
         <div class="container motel-hero__inner py-4">
           <h1 class="motel-hero__title text-center mb-3">Tu siguiente viaje comienza aquí</h1>
 
-          <!-- FECHAS CENTRADAS -->
-          <div class="motel-searchcard shadow mx-auto">
-            <div class="row g-2 justify-content-center align-items-end">
+        
+          <div class="motel-searchcard shadow">
+            <div  class="row g-2 justify-content-center">
 
-              <div class="col-12 col-sm-6 col-lg-3">
+              <div class="col-12 col-sm-6 col-lg-4">
                 <label class="motel-label" for="checkin">Entrada</label>
                 <input type="date"
                        class="form-control motel-input"
@@ -28,7 +28,7 @@
                        t-att-min="today"/>
               </div>
 
-              <div class="col-12 col-sm-6 col-lg-3">
+              <div class="col-12 col-sm-6 col-lg-4">
                 <label class="motel-label" for="checkout">Salida</label>
                 <input type="date"
                        class="form-control motel-input"
@@ -36,12 +36,14 @@
                        t-att-min="today"/>
               </div>
 
-              <div class="col-12 col-lg-6">
-                <div class="alert alert-warning d-none mb-0"
+              <div class="row mt-2">
+                <div class="col-12" >
+                  <div class="alert alert-warning d-none mb-0"
                      id="date_error"
-                     role="alert"></div>
+                     role="alert">
+                  </div>
+                </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -148,26 +150,6 @@
 
         </div>
       </section>
-
-      <!-- ESTILOS (centrado + UX click) -->
-      <style>
-        .motel-hero__inner{
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-        }
-        .motel-searchcard{
-          width:100%;
-          max-width:900px;
-          margin-left:auto;
-          margin-right:auto;
-          padding:12px;
-          border-radius:14px;
-          background:#fff;
-        }
-        .room-choice{ cursor:pointer; }
-      </style>
-
     </t>
   </template>
 
@@ -223,12 +205,12 @@
 
             <!-- Extras: uno debajo del otro -->
             <div class="d-flex flex-column gap-1">
-              <div class="d-flex justify-content-between">
+              <div>
                 <span><strong>Mascotas:</strong></span>
                 <span>$<span id="ui_pet_fee">0.00</span></span>
               </div>
 
-              <div class="d-flex justify-content-between">
+              <div>
                 <span><strong>Wi-Fi:</strong></span>
                 <span>$<span id="ui_wifi_fee">0.00</span></span>
               </div>
@@ -421,117 +403,68 @@
     </t>
   </template>
 
+  <template id="payment_page" name="Payment - Advance Only">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <h3>Pago anticipado</h3>
+        <div class="alert alert-info">
+          En la web solo se permite pago anticipado.
+        </div>
 
-  <!-- =========================
-       BACKEND VIEWS (SIN CAMBIOS)
-       ========================= -->
-  <record id="view_motel_reservation_list" model="ir.ui.view">
-    <field name="name">motel.reservation.list</field>
-    <field name="model">motel.reservation</field>
-    <field name="arch" type="xml">
-      <list string="Reservations">
-        <field name="reference"/>
-        <field name="state"/>
-        <field name="motel_id"/>
-        <field name="room_id"/>
-        <field name="room_type_code"/>
-        <field name="checkin_date"/>
-        <field name="checkout_date"/>
-        <field name="nights"/>
-        <field name="has_pets"/>
-        <field name="wants_wifi"/>
-        <field name="pet_fee"/>
-        <field name="wifi_fee_total"/>
+        <p>
+          Folio (a generar al pagar): <strong>Pendiente</strong><br/>
+          Total: <strong>$<t t-esc="reservation.final_total"/></strong>
+        </p>
 
-        <field name="final_total"/>
-        <field name="partner_id"/>
-        <field name="sale_order_id"/>
-      </list>
-    </field>
-  </record>
+        <div class="d-flex flex-wrap gap-2">
+          <form action="/motels/pay/submit" method="post" class="d-inline">
+            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+            <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+            <button class="btn btn-primary" type="submit">Pagar ahora</button>
+          </form>
 
-  <record id="view_motel_reservation_form" model="ir.ui.view">
-    <field name="name">motel.reservation.form</field>
-    <field name="model">motel.reservation</field>
-    <field name="arch" type="xml">
-      <form string="Reservation">
-        <sheet>
-          <header>
-            <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
-          </header>
+          <form action="/motels/pay/reception" method="post" class="d-inline">
+            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+            <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+            <button class="btn btn-outline-secondary" type="submit">Pagar en recepción</button>
+          </form>
 
-          <group>
-            <group>
-              <field name="reference" readonly="1"/>
-              <field name="attempt_uuid" readonly="1"/>
-              <field name="motel_id" readonly="1"/>
-              <field name="room_id"/>
-              <field name="room_type_code"/>
-            </group>
-            <group>
-              <field name="checkin_date"/>
-              <field name="checkout_date"/>
-              <field name="nights" readonly="1"/>
-              <field name="currency_id" groups="base.group_system"/>
-            </group>
-          </group>
+          <a class="btn btn-secondary" href="/motels">Cancelar</a>
+        </div>
+      </div>
+    </t>
+  </template>
 
-          <notebook>
-            <page string="Guest">
-              <group>
-                <group>
-                  <field name="partner_id"/>
-                  <field name="guest_first_name"/>
-                  <field name="guest_last_name"/>
-                </group>
-                <group>
-                  <field name="guest_email"/>
-                  <field name="guest_phone"/>
-                  <field name="terms_accepted"/>
-                </group>
-              </group>
-            </page>
+  <template id="pending_payment_page" name="Pending Payment">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-warning" role="alert">
+          <h4 class="mb-2">Reserva creada — Pendiente de pago en recepción</h4>
+          <p class="mb-2">Tu folio es: <strong><t t-esc="reservation.reference"/></strong></p>
+          <p class="mb-0">
+            Presenta este folio en recepción para completar el pago.
+          </p>
+        </div>
+        <a class="btn btn-primary" href="/motels">Volver a moteles</a>
+      </div>
+    </t>
+  </template>
 
-            <page string="Pricing (HU-04)">
-              <group>
-                <group>
-                  <field name="base_price_per_day" readonly="1"/>
-                  <field name="base_total" readonly="1"/>
-                </group>
-                <group>
-                  <field name="surcharge_applied" readonly="1"/>
-                  <field name="final_total" readonly="1"/>
-                </group>
-              </group>
-            </page>
 
-            <page string="Sales">
-              <group>
-                <field name="sale_order_id"/>
-              </group>
-            </page>
-          </notebook>
-        </sheet>
-      </form>
-    </field>
-  </record>
-
-  <record id="action_motel_reservation" model="ir.actions.act_window">
-    <field name="name">Reservations</field>
-    <field name="res_model">motel.reservation</field>
-    <field name="view_mode">list,form</field>
-    <field name="help" type="html">
-      <p class="o_view_nocontent_smiling_face">
-        Crea y gestiona reservas de habitaciones.
-      </p>
-    </field>
-  </record>
-
-  <menuitem id="menu_motel_root" name="Motel" sequence="60"/>
-  <menuitem id="menu_motel_reservation"
-            name="Reservations"
-            parent="menu_motel_root"
-            action="action_motel_reservation"
-            sequence="10"/>
+  <template id="payment_failed_page" name="Payment Failed">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-danger">
+          <h4>El pago no pudo completarse</h4>
+          <p>Tu reserva no se ha confirmado. Puedes reintentar el pago.</p>
+          <p class="text-muted mb-0">
+            ID correlación: <strong><t t-esc="reservation.payment_correlation_id"/></strong>
+          </p>
+        </div>
+        <a class="btn btn-primary" t-att-href="'/motels/pay/%s' % reservation.attempt_uuid">Reintentar pago</a>
+        <a class="btn btn-secondary ms-2" href="/motels">Volver</a>
+      </div>
+    </t>
+  </template>
 
 </odoo>

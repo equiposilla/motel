@@ -36,10 +36,29 @@
 .motel-searchcard{
   background: #fff;
   border-radius: 18px;
-  padding: 16px;
+  padding: 20px;
   max-width: 1020px;
   margin: 0 auto;
 }
+
+.motel-searchcard .row{
+  justify-content: center;      
+}
+
+
+.motel-searchcard .row > [class*="col-"]{
+  min-width: 220px;          
+}
+
+@media (max-width: 575.98px){
+  .motel-searchcard{
+    padding: 14px;
+  }
+  .motel-searchcard .row > [class*="col-"]{
+    min-width: 0;
+  }
+}
+
 
 .motel-label{
   display:block;

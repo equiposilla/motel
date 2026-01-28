@@ -1,6 +1,6 @@
 # __manifest__.py
 {
-    "name": "Motel Availability (HU-01 + HU-02 + HU-04)",
+    "name": "Motel",
     "author": "Equipo silla",
     "version": "1.2.0",
     "category": "Website",
@@ -8,7 +8,8 @@
     "depends": [
         "base",     
         "website",  
-        "sale",     
+        "sale",
+        "payment",     
         # "account", # para generar facturas desde la SO una vez implementado el pago
         # "mail",    # implemntado el pago y la facturación enviar facturas por email
     ],
@@ -16,7 +17,9 @@
         "security/ir.model.access.csv",
         "data/sequence.xml",     # folio reference RES-000001...
         "data/demo.xml",
-        "views/templates.xml",   # incluye qweb + vistas backend que agregamos
+        "views/backend_views.xml",
+        "views/templates.xml",
+        
     ],
     "assets": {
         
