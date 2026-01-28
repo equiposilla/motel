@@ -120,7 +120,8 @@ class MotelAvailabilityController(http.Controller):
 
         occupied = Res.read_group(
             domain=[
-                ("state", "=", "confirmed"),
+                ("state", "!=", "cancelled"),
+                ("payment_state", "in", ("pending", "paid")),
                 ("motel_id", "in", motels.ids),
                 ("checkin_date", "<", d_out),
                 ("checkout_date", ">", d_in),
@@ -129,6 +130,7 @@ class MotelAvailabilityController(http.Controller):
             groupby=["room_id"],
             lazy=False,
         )
+
         occupied_room_ids = [r["room_id"][0] for r in occupied if r.get("room_id")]
 
         occ_by_type = {}
@@ -283,7 +285,7 @@ class MotelAvailabilityController(http.Controller):
     def motels_page(self, **kw):
         motels = request.env["motel.motel"].sudo().search([], order="id asc", limit=4)
         today = fields.Date.to_string(self._today())
-        return request.render("motel_availability.motels_page", {"motels": motels, "today": today})
+        return request.render("motel.motels_page", {"motels": motels, "today": today})
 
 
     @http.route("/motels/availability_http", type="http", auth="public", methods=["GET"], csrf=False, website=True)
@@ -342,7 +344,7 @@ class MotelAvailabilityController(http.Controller):
         # 5) Render
         # Nota: devolvemos pricing aunque haya erroes del formulario (en este GET no hay),
         # pero si err existe, el template ya mostrará el warning.
-        return request.render("motel_availability.reserve_page", {
+        return request.render("motel.reserve_page", {
             "motel": motel,
             "room_type": room_type,
             "checkin": checkin,
@@ -374,7 +376,8 @@ class MotelAvailabilityController(http.Controller):
             return None
 
         occupied = Res.search([
-            ("state", "=", "confirmed"),
+            ("state", "!=", "cancelled"),
+            ("payment_state", "in", ("pending", "paid")),
             ("room_id", "in", rooms.ids),
             ("checkin_date", "<", d_out),
             ("checkout_date", ">", d_in),
@@ -404,7 +407,7 @@ class MotelAvailabilityController(http.Controller):
         payment_method = (post.get("payment_method") or "advance").strip()
         # CA-01: web solo anticipado
         if payment_method != "advance":
-            return request.render("motel_availability.reserve_error", {
+            return request.render("motel.reserve_error", {
                 "message": "En la web solo se permite pago anticipado.",
                 "attempt_uuid": attempt_uuid,
             })
@@ -443,7 +446,7 @@ class MotelAvailabilityController(http.Controller):
                 pricing = None
 
         if errors:
-            return request.render("motel_availability.reserve_page", {
+            return request.render("motel.reserve_page", {
                 "motel": motel,
                 "room_type": room_type,
                 "checkin": checkin,
@@ -458,7 +461,7 @@ class MotelAvailabilityController(http.Controller):
             with request.env.cr.savepoint():
                 room = self._find_available_room(int(motel_id), room_type, d_in, d_out)
                 if not room:
-                    return request.render("motel_availability.reserve_error", {
+                    return request.render("motel.reserve_error", {
                         "message": "No hay habitaciones disponibles para ese rango. Cambia fechas o tipo.",
                         "attempt_uuid": attempt_uuid,
                     })
@@ -518,7 +521,7 @@ class MotelAvailabilityController(http.Controller):
 
         except Exception as e:
             _logger.exception("Error confirmando reserva (attempt=%s)", attempt_uuid)
-            return request.render("motel_availability.reserve_error", {
+            return request.render("motel.reserve_error", {
                 "message": f"No se pudo confirmar la reserva: {e}",
                 "attempt_uuid": attempt_uuid,
             })
@@ -531,12 +534,12 @@ class MotelAvailabilityController(http.Controller):
             return request.not_found()
             # CA-01 bloqueo duro
         if reservation.channel == "web" and reservation.payment_method != "advance":
-            return request.render("motel_availability.reserve_error", {
+            return request.render("motel.reserve_error", {
                 "message": "En la web solo se permite pago anticipado.",
                 "attempt_uuid": attempt_uuid,
             })
 
-        return request.render("motel_availability.payment_page", {"reservation": reservation})
+        return request.render("motel.payment_page", {"reservation": reservation})
 
     @http.route("/motels/pay/submit", type="http", auth="public", website=True, methods=["POST"], csrf=True)
     def pay_submit(self, **post):
@@ -548,7 +551,7 @@ class MotelAvailabilityController(http.Controller):
             return request.not_found()
 
         if reservation.channel == "web" and reservation.payment_method != "advance":
-            return request.render("motel_availability.reserve_error", {
+            return request.render("motel.reserve_error", {
                 "message": "En la web solo se permite pago anticipado.",
                 "attempt_uuid": attempt_uuid,
             })
@@ -588,24 +591,24 @@ class MotelAvailabilityController(http.Controller):
     @http.route("/motels/pay/reception", type="http", auth="public", website=True, methods=["POST"], csrf=True)
     def pay_in_reception(self, **post):
         attempt_uuid = (post.get("attempt_uuid") or "").strip()
-        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
+        reservation = request.env["motel.reservation"].sudo().search(
+            [("attempt_uuid", "=", attempt_uuid)], limit=1
+        )
         if not reservation:
             return request.not_found()
 
-        # Si ya está pagada, manda a confirmación
         if reservation.payment_state == "paid":
             return request.redirect(f"/motels/confirmation/{reservation.reference}")
 
-        # Si la SO ya fue confirmada/cancelada, NO la regreses a draft (no es estándar)
         if reservation.sale_order_id and reservation.sale_order_id.state not in ("draft", "sent"):
             return request.render("motel_availability.reserve_error", {
                 "message": "No se puede cambiar a pago en recepción porque la orden de venta ya está confirmada o cancelada.",
-                "attempt_uuid": reservation.attempt_uuid,
+                "attempt_uuid": attempt_uuid,
             })
 
         correlation_id = reservation.payment_correlation_id or f"REC-{uuid.uuid4().hex[:12].upper()}"
 
-        # Opción A: derivar el canal a recepción + método on_site + estado pending
+        # 🔹 Derivar a recepción
         reservation.write({
             "channel": "reception",
             "payment_method": "on_site",
@@ -613,13 +616,26 @@ class MotelAvailabilityController(http.Controller):
             "payment_correlation_id": correlation_id,
         })
 
+        # 🔹 Cancelar intento web pendiente (si existe)
+        web_log = request.env["motel.payment.log"].sudo().search([
+            ("reservation_id", "=", reservation.id),
+            ("channel", "=", "web"),
+            ("state", "=", "pending"),
+        ], limit=1)
+
+        if web_log:
+            web_log.write({
+                "state": "cancelled",
+                "note": "Pago web abortado por elección de pago en recepción.",
+            })
+
+        # 🔹 Crear log único de recepción
         request.env["motel.payment.log"].sudo().create({
             "reservation_id": reservation.id,
             "channel": "reception",
             "action": "reception_collect",
             "state": "pending",
             "correlation_id": correlation_id,
-            "provider_reference": "",
             "performed_by_user_id": request.env.user.id if request.env.user else False,
             "note": "Cliente eligió pagar en recepción desde la web. Reserva queda pendiente.",
         })
@@ -627,12 +643,13 @@ class MotelAvailabilityController(http.Controller):
         return request.redirect(f"/motels/pending/{reservation.reference}")
 
 
+
     @http.route("/motels/pending/<string:reference>", type="http", auth="public", website=True, sitemap=False)
     def pending_page(self, reference, **kw):
         reservation = request.env["motel.reservation"].sudo().search([("reference", "=", reference)], limit=1)
         if not reservation:
             return request.not_found()
-        return request.render("motel_availability.pending_payment_page", {"reservation": reservation})
+        return request.render("motel.pending_payment_page", {"reservation": reservation})
 
 
     
@@ -641,7 +658,7 @@ class MotelAvailabilityController(http.Controller):
         reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
         if not reservation:
             return request.not_found()
-        return request.render("motel_availability.payment_failed_page", {"reservation": reservation})
+        return request.render("motel.payment_failed_page", {"reservation": reservation})
 
 
     @http.route("/motels/confirmation/<string:reference>", type="http", auth="public", website=True, sitemap=False)
@@ -649,4 +666,4 @@ class MotelAvailabilityController(http.Controller):
         reservation = request.env["motel.reservation"].sudo().search([("reference", "=", reference)], limit=1)
         if not reservation:
             return request.not_found()
-        return request.render("motel_availability.confirmation_page", {"reservation": reservation})
+        return request.render("motel.confirmation_page", {"reservation": reservation})

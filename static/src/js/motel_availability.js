@@ -350,7 +350,7 @@
   // ============================================================
   document.addEventListener("DOMContentLoaded", () => {
     // 1) /motels: disponibilidad + cards
-    const root = document.getElementById("motel_availability_root");
+    const root = document.getElementById("motel_root");
     if (root) {
       const checkin = qs("#checkin");
       const checkout = qs("#checkout");

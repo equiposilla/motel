@@ -219,7 +219,7 @@
     <field name="name">Payment Logs</field>
     <field name="res_model">motel.payment.log</field>
     <field name="view_mode">list,form</field>
-    <field name="search_view_id" ref="motel_availability.view_motel_payment_log_search"/>
+    <field name="search_view_id" ref="motel.view_motel_payment_log_search"/>
     </record>
 
     <menuitem id="menu_motel_payment_log"
