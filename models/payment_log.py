@@ -14,7 +14,12 @@ class MotelPaymentLog(models.Model):
         required=True,
         index=True,
     )
-    state = fields.Selection([("pending", "Pending"), ("paid", "Paid"), ("failed", "Failed")], required=True, index=True)
+    state = fields.Selection([
+    ("pending", "Pending"),
+    ("paid", "Paid"),
+    ("failed", "Failed"),
+    ("cancelled", "Cancelled"),
+    ], required=True, index=True)
 
     correlation_id = fields.Char(index=True)
     provider_reference = fields.Char(string="Gateway Reference")
