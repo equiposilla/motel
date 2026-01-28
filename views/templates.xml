@@ -416,25 +416,41 @@
           Total: <strong>$<t t-esc="reservation.final_total"/></strong>
         </p>
 
-        <form action="/motels/pay/submit" method="post">
-          <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-          <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+        <div class="d-flex flex-wrap gap-2">
+          <form action="/motels/pay/submit" method="post" class="d-inline">
+            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+            <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+            <button class="btn btn-primary" type="submit">Pagar ahora</button>
+          </form>
 
-          <!-- Demo: selector para probar éxito/fallo -->
-          <div class="mb-3">
-            <label class="form-label">Simular resultado</label>
-            <select class="form-select" name="outcome">
-              <option value="success">Éxito</option>
-              <option value="fail">Fallo</option>
-            </select>
-          </div>
+          <form action="/motels/pay/reception" method="post" class="d-inline">
+            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+            <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+            <button class="btn btn-outline-secondary" type="submit">Pagar en recepción</button>
+          </form>
 
-          <button class="btn btn-primary" type="submit">Pagar ahora</button>
-          <a class="btn btn-secondary ms-2" href="/motels">Cancelar</a>
-        </form>
+          <a class="btn btn-secondary" href="/motels">Cancelar</a>
+        </div>
       </div>
     </t>
   </template>
+
+  <template id="pending_payment_page" name="Pending Payment">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-warning" role="alert">
+          <h4 class="mb-2">Reserva creada — Pendiente de pago en recepción</h4>
+          <p class="mb-2">Tu folio es: <strong><t t-esc="reservation.reference"/></strong></p>
+          <p class="mb-0">
+            Presenta este folio en recepción para completar el pago.
+          </p>
+        </div>
+        <a class="btn btn-primary" href="/motels">Volver a moteles</a>
+      </div>
+    </t>
+  </template>
+
+
   <template id="payment_failed_page" name="Payment Failed">
     <t t-call="website.layout">
       <div class="container my-5">

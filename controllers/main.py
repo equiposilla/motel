@@ -276,8 +276,6 @@ class MotelAvailabilityController(http.Controller):
             "order_line": order_lines,
         })
 
-        so.action_confirm()
-
         return so
 
 
@@ -586,6 +584,57 @@ class MotelAvailabilityController(http.Controller):
             "note": "Pago anticipado web fallido (simulado).",
         })
         return request.redirect(f"/motels/pay_failed/{reservation.attempt_uuid}")
+
+    @http.route("/motels/pay/reception", type="http", auth="public", website=True, methods=["POST"], csrf=True)
+    def pay_in_reception(self, **post):
+        attempt_uuid = (post.get("attempt_uuid") or "").strip()
+        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
+        if not reservation:
+            return request.not_found()
+
+        # Si ya está pagada, manda a confirmación
+        if reservation.payment_state == "paid":
+            return request.redirect(f"/motels/confirmation/{reservation.reference}")
+
+        # Si la SO ya fue confirmada/cancelada, NO la regreses a draft (no es estándar)
+        if reservation.sale_order_id and reservation.sale_order_id.state not in ("draft", "sent"):
+            return request.render("motel_availability.reserve_error", {
+                "message": "No se puede cambiar a pago en recepción porque la orden de venta ya está confirmada o cancelada.",
+                "attempt_uuid": reservation.attempt_uuid,
+            })
+
+        correlation_id = reservation.payment_correlation_id or f"REC-{uuid.uuid4().hex[:12].upper()}"
+
+        # Opción A: derivar el canal a recepción + método on_site + estado pending
+        reservation.write({
+            "channel": "reception",
+            "payment_method": "on_site",
+            "payment_state": "pending",
+            "payment_correlation_id": correlation_id,
+        })
+
+        request.env["motel.payment.log"].sudo().create({
+            "reservation_id": reservation.id,
+            "channel": "reception",
+            "action": "reception_collect",
+            "state": "pending",
+            "correlation_id": correlation_id,
+            "provider_reference": "",
+            "performed_by_user_id": request.env.user.id if request.env.user else False,
+            "note": "Cliente eligió pagar en recepción desde la web. Reserva queda pendiente.",
+        })
+
+        return request.redirect(f"/motels/pending/{reservation.reference}")
+
+
+    @http.route("/motels/pending/<string:reference>", type="http", auth="public", website=True, sitemap=False)
+    def pending_page(self, reference, **kw):
+        reservation = request.env["motel.reservation"].sudo().search([("reference", "=", reference)], limit=1)
+        if not reservation:
+            return request.not_found()
+        return request.render("motel_availability.pending_payment_page", {"reservation": reservation})
+
+
     
     @http.route("/motels/pay_failed/<string:attempt_uuid>", type="http", auth="public", website=True, sitemap=False)
     def pay_failed(self, attempt_uuid, **kw):

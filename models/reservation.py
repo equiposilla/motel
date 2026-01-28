@@ -255,44 +255,53 @@ class MotelReservation(models.Model):
         if self.state != "confirmed":
             self.write({"state": "confirmed"})
 
+            # Confirmar SO SOLO aquí (pago exitoso)
+        if self.sale_order_id and self.sale_order_id.state in ("draft", "sent"):
+            self.sale_order_id.sudo().action_confirm()
+
     def action_mark_payment_failed(self, correlation_id=None):
         self.ensure_one()
         self.write({
             "payment_state": "failed",
             "payment_correlation_id": correlation_id or self.payment_correlation_id,
         })
-
+        
     def action_register_on_site_payment(self):
         """Recepción cobra y marca pagado (CA-03/04/05)."""
         for rec in self:
             if rec.channel != "reception" or rec.payment_method != "on_site":
                 raise ValidationError("Solo aplica a reservas de recepción con pago en sitio.")
-            if rec.payment_state in ("paid",):
+
+            if rec.payment_state == "paid":
                 continue
+
+            # Validar SO antes de marcar pago (evita estados inconsistentes)
+            so = rec.sale_order_id
+            if not so:
+                raise ValidationError("No hay Orden de Venta vinculada a esta reserva (sale_order_id vacío).")
+            if so.state == "cancel":
+                raise ValidationError("La orden de venta está cancelada. No se puede confirmar automáticamente.")
 
             correlation_id = rec.payment_correlation_id or f"REC-{uuid.uuid4().hex[:12].upper()}"
             reference = rec.payment_reference or f"REC-CASH-{rec.reference}"
 
-            rec.write({
+            # Confirmar SO si está en draft/sent (estado 'sale' = Confirmed)
+            if so.state in ("draft", "sent"):
+                so.sudo().action_confirm()
+
+            # Marcar pago + confirmar reserva (usa write)
+            vals = {
                 "payment_state": "paid",
                 "payment_reference": reference,
                 "payment_correlation_id": correlation_id,
                 "paid_at": fields.Datetime.now(),
                 "paid_by_user_id": self.env.user.id,
-            })
-
-            # Confirmar la reserva si aún no lo está
+            }
             if rec.state != "confirmed":
-                rec.state = "confirmed"
+                vals["state"] = "confirmed"
+            rec.write(vals)
 
-            if rec.sale_order_id:
-                if rec.sale_order_id.state in ("draft", "sent"):
-                    rec.sale_order_id.sudo().action_confirm()
-                elif rec.sale_order_id.state == "cancel":
-                    raise ValidationError("La orden de venta está cancelada. No se puede confirmar automáticamente.")
-            else:
-                raise ValidationError("No hay Orden de Venta vinculada a esta reserva (sale_order_id vacío).")
-
+            # Auditoría
             self.env["motel.payment.log"].sudo().create({
                 "reservation_id": rec.id,
                 "channel": "reception",
@@ -303,6 +312,7 @@ class MotelReservation(models.Model):
                 "performed_by_user_id": self.env.user.id,
                 "note": "Cobro registrado en recepción.",
             })
+
 
     @api.model_create_multi
     def create(self, vals_list):
