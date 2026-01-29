@@ -2,6 +2,7 @@
 import uuid
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from datetime import datetime, time
 
 
 class MotelReservation(models.Model):
@@ -171,6 +172,22 @@ class MotelReservation(models.Model):
         copy=False,
     )
 
+    cancelled_at = fields.Datetime(string="Cancelled At", readonly=True, copy=False)
+    cancelled_by_user_id = fields.Many2one("res.users", string="Cancelled By", readonly=True, copy=False)
+    cancelled_channel = fields.Selection([("web", "Web"), ("reception", "Reception")], string="Cancelled Channel", readonly=True, copy=False)
+
+    refund_percentage = fields.Float(string="Refund % Applied", readonly=True, copy=False)
+    refund_amount = fields.Monetary(string="Refund Amount", currency_field="currency_id", readonly=True, copy=False)
+    non_refundable_amount = fields.Monetary(string="Retained Amount", currency_field="currency_id", readonly=True, copy=False)
+    refund_reference = fields.Char(string="Refund Reference", readonly=True, copy=False)
+
+    checkin_datetime = fields.Datetime(
+        string="Check-in DateTime",
+        compute="_compute_checkin_datetime",
+        store=False,
+        help="Fecha/hora usada para política de cancelación (check-in).",
+    )
+
     @api.depends("room_type_code", "checkin_date", "checkout_date", "has_pets", "wants_wifi")
     def _compute_pricing(self):
         """
@@ -273,6 +290,7 @@ class MotelReservation(models.Model):
             "payment_correlation_id": correlation_id or self.payment_correlation_id,
             "paid_at": fields.Datetime.now(),
             "paid_by_user_id": (by_user or self.env.user).id,
+            "amount_paid": self.final_total,
         })
         # Si venía de web, ahora sí confirmamos la reserva (CA-02)
         if self.state != "confirmed":
@@ -319,6 +337,7 @@ class MotelReservation(models.Model):
                 "payment_correlation_id": correlation_id,
                 "paid_at": fields.Datetime.now(),
                 "paid_by_user_id": self.env.user.id,
+                "amount_paid": rec.final_total,
             }
             if rec.state != "confirmed":
                 vals["state"] = "confirmed"
@@ -335,6 +354,173 @@ class MotelReservation(models.Model):
                 "performed_by_user_id": self.env.user.id,
                 "note": "Cobro registrado en recepción.",
             })
+
+
+    def _get_checkin_hour(self):
+        # Param configurable, default 14 (2pm)
+        param = self.env["ir.config_parameter"].sudo().get_param("motel.checkin_hour", default="14")
+        try:
+            hour = int(param)
+        except Exception:
+            hour = 14
+        return max(0, min(23, hour))
+    
+        # --- HU-05: Policy Engine ---
+    def _compute_refund_percentage(self, cancel_dt):
+        """Devuelve porcentaje en [0, 50, 100] según horas antes del check-in."""
+        self.ensure_one()
+        if not self.checkin_datetime:
+            return 0.0
+        checkin_dt = fields.Datetime.from_string(self.checkin_datetime)
+        cancel_dt = fields.Datetime.from_string(cancel_dt) if isinstance(cancel_dt, str) else cancel_dt
+        delta_hours = (checkin_dt - cancel_dt).total_seconds() / 3600.0
+
+        if delta_hours >= 72.0:
+            return 100.0
+        if 24.0 <= delta_hours < 72.0:
+            return 50.0
+        return 0.0
+
+    def get_cancellation_quote(self, cancel_dt=None):
+        """CA-02/CA-03: desglose para mostrar ANTES de confirmar cancelación."""
+        self.ensure_one()
+        cancel_dt = cancel_dt or fields.Datetime.now()
+
+        pct = self._compute_refund_percentage(cancel_dt)
+        total_paid = self.amount_paid or 0.0  # CA-02: sobre lo realmente pagado
+
+        refund = total_paid * (pct / 100.0)
+        retained = total_paid - refund
+
+        return {
+            "refund_percentage": pct,
+            "total_paid": total_paid,
+            "refund_amount": refund,
+            "retained_amount": retained,
+            "message": ("¿Deseas cancelar esta reserva con un reembolso de $%s?") % (refund,),
+        }
+
+    def action_cancel_with_policy(self, channel="web"):
+        """
+        CA-04/CA-05/CA-06: Cancela, guarda auditoría, y ejecuta refund si aplica.
+        """
+        self.ensure_one()
+
+        if self.state == "cancelled":
+            return
+
+        cancel_dt = fields.Datetime.now()
+        quote = self.get_cancellation_quote(cancel_dt=cancel_dt)
+
+        pct = quote["refund_percentage"]
+        refund_amount = quote["refund_amount"]
+        retained_amount = quote["retained_amount"]
+
+        # Determinar estado financiero
+        financial_state = "none"
+        if (self.amount_paid or 0.0) <= 0:
+            financial_state = "none"
+        elif pct >= 100.0:
+            financial_state = "refunded"
+        elif 0.0 < pct < 100.0:
+            financial_state = "partial"
+        else:
+            financial_state = "non_refundable"
+
+        # Write (auditoría + estados)
+        self.write({
+            "state": "cancelled",
+            "cancelled_at": cancel_dt,
+            "cancelled_by_user_id": self.env.user.id,
+            "cancelled_channel": channel,
+            "refund_percentage": pct,
+            "refund_amount": refund_amount,
+            "non_refundable_amount": retained_amount,
+            "financial_state": financial_state,
+        })
+
+        # Auditoría en log (reutilizamos motel.payment.log)
+        self.env["motel.payment.log"].sudo().create({
+            "reservation_id": self.id,
+            "channel": channel,
+            "action": "cancel",
+            "state": "cancelled",
+            "correlation_id": self.payment_correlation_id or self.reference,
+            "provider_reference": self.payment_reference,
+            "performed_by_user_id": self.env.user.id,
+            "note": f"Cancelación. pct={pct} refund={refund_amount} retained={retained_amount}",
+        })
+
+        # CA-04: refund automático solo si fue anticipado y realmente hubo pago
+        if self.payment_method == "advance" and (self.amount_paid or 0.0) > 0 and refund_amount > 0:
+            refund_tx = self._request_gateway_refund(refund_amount)
+            if refund_tx:
+                self.write({
+                    "refund_reference": refund_tx.reference if hasattr(refund_tx, "reference") else (refund_tx.provider_reference or ""),
+                })
+        elif self.payment_method == "on_site":
+            # Si fue en sitio, se registra como manual cuando hay algo que devolver
+            if refund_amount > 0:
+                self.write({"financial_state": "manual"})
+
+
+    def _request_gateway_refund(self, amount_to_refund):
+        """
+        Crea solicitud de refund vía payment.transaction.
+        Retorna la refund transaction (si se pudo).
+        """
+        self.ensure_one()
+
+        tx = self.env["payment.transaction"].sudo().search([
+            ("reference", "=", self.payment_reference),
+        ], limit=1)
+
+        if not tx and self.payment_correlation_id:
+            tx = self.env["payment.transaction"].sudo().search([
+                ("reference", "ilike", self.payment_correlation_id),
+            ], limit=1)
+
+        if not tx:
+            # No rompemos la cancelación, pero dejamos auditoría
+            self.env["motel.payment.log"].sudo().create({
+                "reservation_id": self.id,
+                "channel": self.cancelled_channel or "web",
+                "action": "refund_request",
+                "state": "failed",
+                "correlation_id": self.payment_correlation_id or self.reference,
+                "provider_reference": self.payment_reference,
+                "performed_by_user_id": self.env.user.id,
+                "note": "No se encontró payment.transaction para solicitar refund.",
+            })
+            return None
+
+        # Odoo: _refund(amount_to_refund) crea refund tx y dispara _send_refund_request()
+        refund_tx = tx.sudo()._refund(amount_to_refund=amount_to_refund)  # doc: amount_to_refund :contentReference[oaicite:1]{index=1}
+
+        self.env["motel.payment.log"].sudo().create({
+            "reservation_id": self.id,
+            "channel": self.cancelled_channel or "web",
+            "action": "refund_request",
+            "state": "pending",
+            "correlation_id": self.payment_correlation_id or self.reference,
+            "provider_reference": getattr(refund_tx, "reference", "") if refund_tx else "",
+            "performed_by_user_id": self.env.user.id,
+            "note": f"Refund solicitado por {amount_to_refund}.",
+        })
+        return refund_tx
+
+
+
+    @api.depends("checkin_date")
+    def _compute_checkin_datetime(self):
+        for rec in self:
+            if not rec.checkin_date:
+                rec.checkin_datetime = False
+                continue
+            hour = rec._get_checkin_hour()
+            # context_timestamp: convertimos “naive UTC” luego Odoo lo renderiza con tz
+            dt = datetime.combine(rec.checkin_date, time(hour=hour, minute=0, second=0))
+            rec.checkin_datetime = fields.Datetime.to_string(dt)
 
 
     @api.model_create_multi
