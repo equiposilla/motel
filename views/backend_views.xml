@@ -47,6 +47,13 @@
                     invisible="channel != 'reception'
                             or payment_method != 'on_site'
                             or payment_state == 'paid'"/>
+
+                <button name="action_open_cancel_wizard"
+                        type="object"
+                        string="Cancelar (política)"
+                        class="btn-danger"
+                        invisible="state == 'cancelled'"/>
+
             </header>
 
             <group>
@@ -115,12 +122,77 @@
                     </group>
                 </group>
                 </page>
+
+                <page string="Cancellation">
+                <group>
+                    <group>
+                      <field name="cancelled_at" readonly="1"/>
+                      <field name="cancelled_by_user_id" readonly="1"/>
+                      <field name="cancelled_channel" readonly="1"/>
+                    </group>
+                    <group>
+                      <field name="financial_state" readonly="1"/>
+                      <field name="refund_percentage" readonly="1"/>
+                      <field name="refund_reference" readonly="1"/>
+                    </group>
+                </group>
+
+                <group>
+                    <group>
+                      <field name="amount_paid" readonly="1"/>
+                    </group>
+                    <group>
+                      <field name="refund_amount" readonly="1"/>
+                      <field name="non_refundable_amount" readonly="1"/>
+                    </group>
+                </group>
+                </page>
             </notebook>
             </sheet>
         </form>
         </field>
     </record>
     
+        <!-- =========================
+         HU-05: Cancel Wizard (Backoffice)
+         ========================= -->
+    <record id="view_motel_reservation_cancel_wizard_form" model="ir.ui.view">
+      <field name="name">motel.reservation.cancel.wizard.form</field>
+      <field name="model">motel.reservation.cancel.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Cancelar reserva">
+          <sheet>
+            <group>
+              <field name="reservation_id" readonly="1"/>
+            </group>
+
+            <div class="alert alert-info" role="alert">
+              <field name="message" readonly="1" nolabel="1"/>
+            </div>
+
+            <group>
+              <group>
+                <field name="refund_percentage" readonly="1"/>
+                <field name="total_paid" readonly="1"/>
+              </group>
+              <group>
+                <field name="refund_amount" readonly="1"/>
+                <field name="retained_amount" readonly="1"/>
+              </group>
+            </group>
+
+            <footer>
+              <button string="Confirmar cancelación"
+                      type="object"
+                      name="action_confirm_cancel"
+                      class="btn-primary"/>
+              <button string="Cerrar" special="cancel" class="btn-secondary"/>
+            </footer>
+          </sheet>
+        </form>
+      </field>
+    </record>
+
 
     <record id="action_motel_reservation" model="ir.actions.act_window">
         <field name="name">Reservations</field>

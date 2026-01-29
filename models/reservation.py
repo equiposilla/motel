@@ -522,6 +522,16 @@ class MotelReservation(models.Model):
             dt = datetime.combine(rec.checkin_date, time(hour=hour, minute=0, second=0))
             rec.checkin_datetime = fields.Datetime.to_string(dt)
 
+    def action_open_cancel_wizard(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Cancelar reserva",
+            "res_model": "motel.reservation.cancel.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"active_id": self.id},
+        }
 
     @api.model_create_multi
     def create(self, vals_list):
