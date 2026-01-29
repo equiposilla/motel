@@ -139,7 +139,7 @@ class MotelReservation(models.Model):
         ],
         string="Payment Status",
         required=True,
-        default="pending",  # web todavía no pagó hasta que inicie pago
+        default="pending",  # web derivado a pago en recepción 
         index=True,
     )
 
@@ -147,6 +147,29 @@ class MotelReservation(models.Model):
     payment_correlation_id = fields.Char(string="Correlation ID", copy=False, index=True)
     paid_at = fields.Datetime(string="Paid At", readonly=True, copy=False)
     paid_by_user_id = fields.Many2one("res.users", string="Paid By", readonly=True, copy=False)
+
+    amount_paid = fields.Monetary(
+    string="Amount Paid",
+    currency_field="currency_id",
+    readonly=True,
+    copy=False,
+    help="Monto realmente pagado por el cliente (base para reembolso).",
+    )
+
+    financial_state = fields.Selection(
+        [
+            ("none", "No aplica"),
+            ("refunded", "Reembolsado"),
+            ("partial", "Parcialmente reembolsado"),
+            ("non_refundable", "No reembolsable"),
+            ("manual", "Reembolso manual"),
+        ],
+        string="Financial Status",
+        default="none",
+        required=True,
+        index=True,
+        copy=False,
+    )
 
     @api.depends("room_type_code", "checkin_date", "checkout_date", "has_pets", "wants_wifi")
     def _compute_pricing(self):

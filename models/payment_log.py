@@ -21,6 +21,12 @@ class MotelPaymentLog(models.Model):
     ("cancelled", "Cancelled"),
     ], required=True, index=True)
 
+    _sql_constraints = [
+    ("uniq_pending_web_tx",
+     "unique(reservation_id, action, state, correlation_id)",
+     "Ya existe un log para esta reserva/acción/estado/correlation.")
+    ]
+
     correlation_id = fields.Char(index=True)
     provider_reference = fields.Char(string="Gateway Reference")
     performed_by_user_id = fields.Many2one("res.users", string="Performed By", readonly=True)
