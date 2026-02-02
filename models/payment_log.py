@@ -10,7 +10,15 @@ class MotelPaymentLog(models.Model):
     reservation_id = fields.Many2one("motel.reservation", required=True, ondelete="cascade", index=True)
     channel = fields.Selection([("web", "Web"), ("reception", "Reception")], required=True, index=True)
     action = fields.Selection(
-        [("web_tx", "Web transaction"), ("reception_collect", "Reception collect")],
+        [
+            ("web_tx", "Web transaction"),
+            ("reception_collect", "Reception collect"),
+            ("cancel", "Cancellation"),
+            ("refund_request", "Refund request"),
+            ("refund_done", "Refund done"),
+            ("refund_failed", "Refund failed"),
+        ],
+        string="Action",
         required=True,
         index=True,
     )
@@ -20,6 +28,7 @@ class MotelPaymentLog(models.Model):
     ("failed", "Failed"),
     ("cancelled", "Cancelled"),
     ], required=True, index=True)
+
 
     correlation_id = fields.Char(index=True)
     provider_reference = fields.Char(string="Gateway Reference")

@@ -590,57 +590,46 @@ class MotelAvailabilityController(http.Controller):
 
     @http.route("/motels/pay/reception", type="http", auth="public", website=True, methods=["POST"], csrf=True)
     def pay_in_reception(self, **post):
-        attempt_uuid = (post.get("attempt_uuid") or "").strip()
-        reservation = request.env["motel.reservation"].sudo().search(
-            [("attempt_uuid", "=", attempt_uuid)], limit=1
-        )
+        attempt_uuid = post.get("attempt_uuid")
+        reservation = request.env["motel.reservation"].sudo().search([("attempt_uuid", "=", attempt_uuid)], limit=1)
         if not reservation:
             return request.not_found()
 
-        if reservation.payment_state == "paid":
-            return request.redirect(f"/motels/confirmation/{reservation.reference}")
-
-        if reservation.sale_order_id and reservation.sale_order_id.state not in ("draft", "sent"):
-            return request.render("motel_availability.reserve_error", {
-                "message": "No se puede cambiar a pago en recepción porque la orden de venta ya está confirmada o cancelada.",
-                "attempt_uuid": attempt_uuid,
-            })
-
-        correlation_id = reservation.payment_correlation_id or f"REC-{uuid.uuid4().hex[:12].upper()}"
-
-        # 🔹 Derivar a recepción
+        # Cambia la reserva para pago en sitio (sin confirmar SO)
+        correlation_id = reservation.payment_correlation_id or f"WEB-{uuid.uuid4().hex[:12].upper()}"
         reservation.write({
-            "channel": "reception",
+            "channel": "reception",           # si quieres reflejar el canal operativo
             "payment_method": "on_site",
             "payment_state": "pending",
             "payment_correlation_id": correlation_id,
         })
 
-        # 🔹 Cancelar intento web pendiente (si existe)
-        web_log = request.env["motel.payment.log"].sudo().search([
+        PaymentLog = request.env["motel.payment.log"].sudo()
+
+        web_log = PaymentLog.search([
             ("reservation_id", "=", reservation.id),
-            ("channel", "=", "web"),
+            ("action", "=", "web_tx"),
             ("state", "=", "pending"),
-        ], limit=1)
+            ("correlation_id", "=", correlation_id),
+        ], limit=1, order="id desc")
+
+        note_msg = "Cliente eligió pagar en recepción desde la web. Reserva queda pendiente (sin cobro)."
 
         if web_log:
-            web_log.write({
-                "state": "cancelled",
-                "note": "Pago web abortado por elección de pago en recepción.",
+            web_log.write({"note": note_msg})
+        else:
+            PaymentLog.create({
+                "reservation_id": reservation.id,
+                "channel": "web",
+                "action": "web_tx",
+                "state": "pending",
+                "correlation_id": correlation_id,
+                "performed_by_user_id": request.env.user.id if request.env.user else False,
+                "note": note_msg,
             })
 
-        # 🔹 Crear log único de recepción
-        request.env["motel.payment.log"].sudo().create({
-            "reservation_id": reservation.id,
-            "channel": "reception",
-            "action": "reception_collect",
-            "state": "pending",
-            "correlation_id": correlation_id,
-            "performed_by_user_id": request.env.user.id if request.env.user else False,
-            "note": "Cliente eligió pagar en recepción desde la web. Reserva queda pendiente.",
-        })
-
         return request.redirect(f"/motels/pending/{reservation.reference}")
+
 
 
 
@@ -667,3 +656,112 @@ class MotelAvailabilityController(http.Controller):
         if not reservation:
             return request.not_found()
         return request.render("motel.confirmation_page", {"reservation": reservation})
+
+
+    # ------------------------------------------------------------
+    # HU-05: Cancelaciones y reembolsos (web) - SEGURO (token + email)
+    #   - GET  /motels/cancel/<attempt_uuid>         -> muestra quote + pide email
+    #   - POST /motels/cancel/confirm                -> valida email + ejecuta cancelación
+    #   - GET  /motels/cancelled/<attempt_uuid>      -> página final
+    # ------------------------------------------------------------
+
+    def _get_reservation_by_attempt_or_404(self, attempt_uuid):
+        reservation = request.env["motel.reservation"].sudo().search(
+            [("attempt_uuid", "=", attempt_uuid)],
+            limit=1
+        )
+        return reservation if reservation else None
+
+    @http.route("/motels/cancel/<string:attempt_uuid>", type="http", auth="public",
+                website=True, sitemap=False, methods=["GET"])
+    def cancel_page(self, attempt_uuid, **kw):
+        reservation = self._get_reservation_by_attempt_or_404(attempt_uuid)
+        if not reservation:
+            return request.not_found()
+
+        if reservation.state == "cancelled":
+            return request.redirect(f"/motels/cancelled/{reservation.attempt_uuid}")
+
+        # Quote (CA-02/CA-03)
+        try:
+            quote = reservation.get_cancellation_quote()
+        except Exception as e:
+            _logger.exception("Error calculando quote de cancelación (attempt=%s)", attempt_uuid)
+            return request.render("motel.reserve_error", {
+                "message": f"No se pudo calcular el reembolso: {e}",
+                "attempt_uuid": reservation.attempt_uuid or "",
+            })
+
+        # Email opcional prellenado desde querystring (pero NO lo validamos aquí)
+        email_prefill = (kw.get("email") or "").strip().lower()
+
+        return request.render("motel.cancel_page", {
+            "reservation": reservation,
+            "quote": quote,
+            "email_prefill": email_prefill,
+        })
+
+    @http.route("/motels/cancel/confirm", type="http", auth="public",
+                website=True, methods=["POST"], csrf=True)
+    def cancel_confirm(self, **post):
+        attempt_uuid = (post.get("attempt_uuid") or "").strip()
+        email = (post.get("email") or "").strip().lower()
+        confirm = (post.get("confirm") or "").strip()
+
+        if not attempt_uuid:
+            return request.not_found()
+
+        reservation = self._get_reservation_by_attempt_or_404(attempt_uuid)
+        if not reservation:
+            return request.not_found()
+
+        # Anti-cancelación por “adivinar token”: además exigimos email match
+        expected_email = (reservation.guest_email or "").strip().lower()
+        if not email or email != expected_email:
+            # Re-render de la página con error (sin revelar demasiado)
+            try:
+                quote = reservation.get_cancellation_quote()
+            except Exception:
+                quote = {}
+            return request.render("motel.cancel_page", {
+                "reservation": reservation,
+                "quote": quote,
+                "email_prefill": email,
+                "error": "El email no coincide con el de la reserva.",
+            })
+
+        if confirm.lower() not in ("yes", "true", "1", "on"):
+            return request.redirect(f"/motels/cancel/{reservation.attempt_uuid}")
+
+        # Recalcular quote en servidor por seguridad (evita manipulación)
+        try:
+            _ = reservation.get_cancellation_quote()
+        except Exception as e:
+            _logger.exception("Error recalculando quote de cancelación (attempt=%s)", attempt_uuid)
+            return request.render("motel.reserve_error", {
+                "message": f"No se pudo recalcular el reembolso: {e}",
+                "attempt_uuid": reservation.attempt_uuid or "",
+            })
+
+        # Ejecutar cancelación (CA-04/CA-05/CA-06)
+        try:
+            reservation.action_cancel_with_policy(channel="web")
+        except Exception as e:
+            _logger.exception("Error ejecutando cancelación (attempt=%s)", attempt_uuid)
+            return request.render("motel.reserve_error", {
+                "message": f"No se pudo cancelar la reserva: {e}",
+                "attempt_uuid": reservation.attempt_uuid or "",
+            })
+
+        return request.redirect(f"/motels/cancelled/{reservation.attempt_uuid}")
+
+    @http.route("/motels/cancelled/<string:attempt_uuid>", type="http", auth="public",
+                website=True, sitemap=False, methods=["GET"])
+    def cancelled_page(self, attempt_uuid, **kw):
+        reservation = self._get_reservation_by_attempt_or_404(attempt_uuid)
+        if not reservation:
+            return request.not_found()
+
+        return request.render("motel.cancelled_page", {
+            "reservation": reservation,
+        })

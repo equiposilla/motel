@@ -466,5 +466,192 @@
       </div>
     </t>
   </template>
+  <!-- =========================
+       PAGE: CANCELLATION (QUOTE + CONFIRM)
+       HU-05 CA-03
+       Seguridad: token attempt_uuid + email match
+       ========================= -->
+  <template id="cancel_page" name="Cancel Reservation">
+    <t t-call="website.layout">
+      <div class="container my-5">
+        <div class="alert alert-warning" role="alert">
+          <h3 class="mb-2">Cancelar reserva</h3>
+          <p class="mb-0">
+            Para proteger tu reserva, confirma tu email antes de cancelar.
+          </p>
+        </div>
 
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="mb-3">Resumen de la reserva</h5>
+
+            <p class="mb-2">
+              <strong>Folio:</strong> <t t-esc="reservation.reference"/><br/>
+              <strong>Motel:</strong> <t t-esc="reservation.motel_id.name"/> —
+              <strong>Habitación:</strong> <t t-esc="reservation.room_id.name"/><br/>
+              <strong>Fechas:</strong>
+              <t t-esc="reservation.checkin_date"/> → <t t-esc="reservation.checkout_date"/>
+            </p>
+
+            <div class="border-top pt-3 mt-3">
+              <h5 class="mb-3">Política aplicada</h5>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>% reembolso:</strong></span>
+                <span class="fw-semibold">
+                  <t t-esc="quote.get('refund_percentage')"/>%
+                </span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Total pagado:</strong></span>
+                <span>$<t t-esc="('%.2f' % (quote.get('total_paid') or 0.0))"/></span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Monto a devolver:</strong></span>
+                <span class="fw-semibold">$<t t-esc="('%.2f' % (quote.get('refund_amount') or 0.0))"/></span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Monto retenido:</strong></span>
+                <span>$<t t-esc="('%.2f' % (quote.get('retained_amount') or 0.0))"/></span>
+              </div>
+
+              <div class="alert alert-info mt-3 mb-0" role="alert">
+                <t t-esc="quote.get('message')"/>
+              </div>
+            </div>
+
+            <!-- Errores (email mismatch, etc.) -->
+            <t t-if="error">
+              <div class="alert alert-danger mt-3" role="alert">
+                <t t-esc="error"/>
+              </div>
+            </t>
+
+            <form action="/motels/cancel/confirm" method="post" class="mt-4">
+              <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+              <input type="hidden" name="attempt_uuid" t-att-value="reservation.attempt_uuid"/>
+              <input type="hidden" name="confirm" value="yes"/>
+
+              <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-7">
+                  <label class="form-label" for="cancel_email">
+                    Confirma tu email (debe coincidir con el de la reserva)*
+                  </label>
+                  <input id="cancel_email"
+                         class="form-control"
+                         type="email"
+                         name="email"
+                         required="required"
+                         t-att-value="email_prefill or ''"
+                         placeholder="tuemail@dominio.com"/>
+                  <small class="text-muted">
+                    Esto evita cancelaciones si alguien conoce el folio.
+                  </small>
+                </div>
+
+                <div class="col-12 col-md-5 text-md-end">
+                  <button class="btn btn-danger" type="submit">
+                    Confirmar cancelación
+                  </button>
+                  <a class="btn btn-outline-secondary ms-2"
+                     t-att-href="'/motels/confirmation/%s' % reservation.reference">
+                    Volver
+                  </a>
+                </div>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    </t>
+  </template>
+
+
+  <!-- =========================
+       PAGE: CANCELLED (RESULT)
+       HU-05 CA-05 / CA-06
+       ========================= -->
+  <template id="cancelled_page" name="Reservation Cancelled">
+    <t t-call="website.layout">
+      <div class="container my-5">
+
+        <div class="alert alert-secondary" role="alert">
+          <h3 class="mb-2">Reserva cancelada</h3>
+          <p class="mb-0">
+            Folio: <strong><t t-esc="reservation.reference"/></strong>
+          </p>
+        </div>
+
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="mb-3">Detalle</h5>
+
+            <p class="mb-2">
+              <strong>Motel:</strong> <t t-esc="reservation.motel_id.name"/> —
+              <strong>Habitación:</strong> <t t-esc="reservation.room_id.name"/><br/>
+              <strong>Fechas:</strong>
+              <t t-esc="reservation.checkin_date"/> → <t t-esc="reservation.checkout_date"/>
+            </p>
+
+            <div class="border-top pt-3 mt-3">
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Estado:</strong></span>
+                <span class="badge bg-dark text-uppercase">
+                  <t t-esc="reservation.state"/>
+                </span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2 mt-2">
+                <span><strong>Estado financiero:</strong></span>
+                <span class="badge bg-primary text-uppercase">
+                  <t t-esc="reservation.financial_state"/>
+                </span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2 mt-2">
+                <span><strong>% aplicado:</strong></span>
+                <span><t t-esc="reservation.refund_percentage"/>%</span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Monto reembolsado:</strong></span>
+                <span class="fw-semibold">$<t t-esc="reservation.refund_amount"/></span>
+              </div>
+
+              <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><strong>Monto retenido:</strong></span>
+                <span>$<t t-esc="reservation.non_refundable_amount"/></span>
+              </div>
+
+              <t t-if="reservation.refund_reference">
+                <div class="d-flex justify-content-between flex-wrap gap-2">
+                  <span><strong>Referencia de reembolso:</strong></span>
+                  <span><t t-esc="reservation.refund_reference"/></span>
+                </div>
+              </t>
+
+              <div class="text-muted small mt-2">
+                Cancelada el:
+                <t t-esc="reservation.cancelled_at"/>
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+              <a class="btn btn-primary" href="/motels">Volver a moteles</a>
+              <a class="btn btn-outline-secondary"
+                 t-att-href="'/motels/cancel/%s' % reservation.attempt_uuid">
+                Ver política aplicada
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </t>
+  </template>
 </odoo>
