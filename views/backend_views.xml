@@ -124,26 +124,48 @@
                 </page>
 
                 <page string="Cancellation">
-                <group>
+                <!-- PREVIEW (antes de cancelar) -->
+
+                <group string="Preview (antes de cancelar)" invisible="state == 'cancelled'">
+                    <div class="alert alert-info" role="alert">
+                        <field name="refund_quote_message" nolabel="1" readonly="1"/>
+                    </div>
+
                     <group>
-                      <field name="cancelled_at" readonly="1"/>
-                      <field name="cancelled_by_user_id" readonly="1"/>
-                      <field name="cancelled_channel" readonly="1"/>
-                    </group>
-                    <group>
-                      <field name="financial_state" readonly="1"/>
-                      <field name="refund_percentage" readonly="1"/>
-                      <field name="refund_reference" readonly="1"/>
+                        <group>
+                            <field name="amount_paid" readonly="1"/>
+                            <field name="refund_quote_percentage" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="refund_quote_amount" readonly="1"/>
+                            <field name="retained_quote_amount" readonly="1"/>
+                        </group>
                     </group>
                 </group>
 
-                <group>
+                <!-- APLICADO (auditoría, después de cancelar) -->
+                <group string="Aplicado (auditoría)" invisible="state != 'cancelled'">
                     <group>
-                      <field name="amount_paid" readonly="1"/>
+                    <group>
+                        <field name="cancelled_at" readonly="1"/>
+                        <field name="cancelled_by_user_id" readonly="1"/>
+                        <field name="cancelled_channel" readonly="1"/>
                     </group>
                     <group>
-                      <field name="refund_amount" readonly="1"/>
-                      <field name="non_refundable_amount" readonly="1"/>
+                        <field name="financial_state" readonly="1"/>
+                        <field name="refund_percentage" readonly="1"/>
+                        <field name="refund_reference" readonly="1"/>
+                    </group>
+                    </group>
+
+                    <group>
+                    <group>
+                        <field name="amount_paid" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="refund_amount" readonly="1"/>
+                        <field name="non_refundable_amount" readonly="1"/>
+                    </group>
                     </group>
                 </group>
                 </page>
