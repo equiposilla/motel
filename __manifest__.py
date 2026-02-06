@@ -49,15 +49,6 @@
         "web.assets_frontend_minimal": [
         "motel/static/src/css/motel_availability.css",
         "motel/static/src/js/motel_availability.js",
-        "motel/static/lib/leaflet/leaflet.css",
-        "motel/static/lib/leaflet.markercluster/MarkerCluster.css",
-        "motel/static/lib/leaflet.markercluster/MarkerCluster.Default.css",
-
-        "motel/static/lib/leaflet/leaflet.js",
-        "motel/static/lib/leaflet.markercluster/leaflet.markercluster.js",
-
-        "motel/static/src/css/motel_map.css",
-        "motel/static/src/js/motel_map.js",
     ],
     },
 
