@@ -51,6 +51,24 @@
   // ============================================================
   // API
   // ============================================================
+  function unwrapOdooJson(payload) {
+    // Si viene JSON-RPC: {jsonrpc, id, result: {...}}
+    if (payload && typeof payload === "object" && payload.result) return payload.result;
+    return payload;
+  }
+
+  function assertMotelsSchema(motels) {
+    if (!Array.isArray(motels)) return "motels no es un array";
+    const bad = motels.find((m) => !m || typeof m !== "object" || !("id" in m));
+    if (bad) return "un motel no tiene 'id'";
+    // normal/premium pueden variar por implementación; avisamos si no existen
+    const missingBuckets = motels.find((m) => !("normal" in m) || !("premium" in m));
+    if (missingBuckets) {
+      return "estructura inesperada: faltan keys 'normal'/'premium' (puede ser que cambió el backend)";
+    }
+    return null;
+  }
+
   async function refreshAvailability(checkin, checkout) {
     const url =
       `/motels/availability_http?checkin=${encodeURIComponent(checkin)}` +
@@ -62,17 +80,34 @@
       credentials: "same-origin",
     });
 
+    let rawText = "";
     let data;
     try {
-      data = await r.json();
+      rawText = await r.text();
+      data = rawText ? JSON.parse(rawText) : null;
     } catch (e) {
+      console.error("[availability] Respuesta NO JSON:", rawText.slice(0, 400));
       throw new Error("Respuesta inválida del servidor (no JSON).");
     }
 
+    // Unwrap si viene JSON-RPC
+    const unwrapped = unwrapOdooJson(data);
+
     if (!r.ok) {
-      throw new Error((data && data.error) || "Error consultando disponibilidad.");
+      console.error("[availability] HTTP error", r.status, r.statusText, unwrapped);
+      throw new Error((unwrapped && unwrapped.error) || "Error consultando disponibilidad.");
     }
-    return data.motels || [];
+
+    const motels = (unwrapped && unwrapped.motels) || [];
+    const schemaErr = assertMotelsSchema(motels);
+    if (schemaErr) {
+      console.warn("[availability] Schema warning:", schemaErr, { unwrapped, motels });
+      // no tiramos error duro porque quizá tu backend devuelve otro shape,
+      // pero así ya lo ves en consola.
+    }
+
+    console.debug("[availability] ok:", { url, count: motels.length, sample: motels[0] });
+    return motels;
   }
 
   // ============================================================
@@ -284,13 +319,26 @@
   }
 
   function renderMotels(motels) {
-    qsa("#motels_grid .card").forEach((card) => {
+    const cards = qsa("#motels_grid .card");
+    const idsOnPage = cards
+      .map((card) => Number(qs("input[data-motel-id]", card)?.value || 0))
+      .filter(Boolean);
+
+    // debug: ids en DOM vs ids del backend
+    const idsFromApi = motels.map((m) => m.id);
+    console.debug("[availability] DOM motel ids:", idsOnPage);
+    console.debug("[availability] API motel ids:", idsFromApi);
+
+    cards.forEach((card) => {
       const motelInput = qs("input[data-motel-id]", card);
       if (!motelInput) return;
 
       const motelId = Number(motelInput.value);
       const m = motels.find((x) => x.id === motelId);
-      if (!m) return;
+      if (!m) {
+        console.warn("[availability] No match para motelId", motelId, "en API");
+        return;
+      }
 
       renderCard(card, m);
     });
@@ -307,7 +355,6 @@
     const cbWifi = document.getElementById("wants_wifi");
     if (!cbPets || !cbWifi) return;
 
-    // Datos base (del backend) expuestos como data-*
     const nights = Number(box.dataset.nights || 0);
     const baseTotal = Number(box.dataset.baseTotal || 0);
     const surcharge = String(box.dataset.surcharge || "0") === "1";
@@ -340,8 +387,6 @@
 
     cbPets.addEventListener("change", recompute);
     cbWifi.addEventListener("change", recompute);
-
-    // Estado inicial (si vienen pre-chequeados)
     recompute();
   }
 
@@ -402,6 +447,7 @@
               if (motelId) updateReserveButton(card, motelId);
             });
           } catch (e) {
+            console.error("[availability] exception:", e);
             showError((e && e.message) || "Error consultando disponibilidad.");
           }
         }

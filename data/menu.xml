@@ -1,0 +1,15 @@
+
+<odoo>
+  <record id="menu_motels_map" model="website.menu">
+    <field name="name">Mapa de moteles</field>
+    <field name="url">/motels/map</field>
+    <field name="parent_id" ref="website.main_menu"/>
+    <field name="sequence" eval="55"/>
+  </record>
+    <record id="menu_motels_reserve" model="website.menu">
+    <field name="name">Hacer reserva</field>
+    <field name="url">/motels</field>
+    <field name="parent_id" ref="website.main_menu"/>
+    <field name="sequence" eval="55"/>
+  </record>
+</odoo>
