@@ -654,4 +654,34 @@
       </div>
     </t>
   </template>
+  
+  <template id="motels_map_page" name="Mapa de moteles">
+    <t t-call="website.layout">
+      <section class="container my-4" id="motel_map_root">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <h2 class="mb-0">Mapa de moteles</h2>
+          <a class="btn btn-outline-primary" href="/motels">Ver lista</a>
+        </div>
+
+        <div id="map_status" class="alert alert-info" role="status">
+          Cargando mapa…
+        </div>
+
+        <div id="map_error" class="alert alert-danger d-none" role="alert">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span id="map_error_msg">No se pudo cargar el mapa.</span>
+            <button id="map_retry" class="btn btn-sm btn-light" type="button">Reintentar</button>
+          </div>
+        </div>
+
+        <div id="map_empty" class="alert alert-warning d-none" role="status">
+          No hay moteles disponibles.
+        </div>
+
+        <div id="motels_map" class="motel-map" aria-label="Mapa interactivo de moteles"></div>
+      </section>
+    </t>
+  </template>
+  
+
 </odoo>

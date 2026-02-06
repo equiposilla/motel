@@ -1,5 +1,5 @@
 # models/motel.py
-from odoo import api, fields, models
+from odoo import api, fields, models , tools
 
 class MotelMotel(models.Model):
     _name = "motel.motel"
@@ -10,8 +10,9 @@ class MotelMotel(models.Model):
     city = fields.Char()
     country_id = fields.Many2one("res.country")
     room_ids = fields.One2many("motel.room", "motel_id", string="Rooms")
-
     room_total = fields.Integer(compute="_compute_room_total", store=False)
+    latitude = fields.Float(string="Latitud", digits=(10, 7))
+    longitude = fields.Float(string="Longitud", digits=(10, 7))
 
     @api.depends("room_ids")
     def _compute_room_total(self):
@@ -22,6 +23,36 @@ class MotelMotel(models.Model):
         self.ensure_one()
         parts = [p for p in [self.street, self.city, self.country_id.name if self.country_id else None] if p]
         return ", ".join(parts) if parts else "Ubicación no definida"
+
+    def _has_valid_coords(self):
+        self.ensure_one()
+        return (
+            self.latitude is not False and self.longitude is not False
+            and -90.0 <= self.latitude <= 90.0
+            and -180.0 <= self.longitude <= 180.0
+        )
+        
+    @tools.ormcache()  # cache básico (CA-05 / CA-08)
+    def _public_map_payload_cached(self):
+        motels = self.sudo().search([])
+        items = []
+        for m in motels:
+            if not m._has_valid_coords():
+                continue
+            items.append({
+                "id": m.id,
+                "name": m.name,
+                "address": m.display_address(),
+                # placeholder de detalle (CA-03)
+                "detail_url": f"/motels/{m.id}",
+                "lat": m.latitude,
+                "lng": m.longitude,
+            })
+        return items
+
+    def public_map_payload(self):
+        # wrapper para poder invalidar si lo necesitas más adelante
+        return self._public_map_payload_cached()
 
 
 class MotelRoomType(models.Model):
