@@ -1,23 +1,35 @@
 /** @odoo-module **/
 
+import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { FloatField } from "@web/views/fields/float/float_field";
-import { onMounted, onWillUnmount } from "@odoo/owl";
+import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
-export class GeoPickerField extends FloatField { 
+export class GeoPickerField extends Component {
   static template = "motel.GeoPickerField";
+  static props = {
+    ...standardFieldProps,
+    options: { type: Object, optional: true }, // para options="{'lng_field': 'longitude'}"
+  };
 
   setup() {
-    super.setup();
+    this.mapRef = useRef("map");
     this.map = null;
     this.marker = null;
 
-    onMounted(() => this._initMap());
+    onMounted(() => this._initMapSafe());
     onWillUnmount(() => this._destroyMap());
   }
 
-  _lngField() {
-    return this.props?.options?.lng_field || "longitude";
+  get lngField() {
+    return (this.props.options && this.props.options.lng_field) || "longitude";
+  }
+
+  _getLatLngFromRecord() {
+    // En campos float, value puede venir como number o false
+    const lat = Number(this.props.value);
+    const lng = Number(this.props.record.data[this.lngField]);
+    const ok = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    return ok ? { lat, lng } : null;
   }
 
   async _write(lat, lng) {
@@ -26,52 +38,86 @@ export class GeoPickerField extends FloatField {
 
     const values = {};
     values[this.props.name] = Number.isFinite(latNum) ? latNum : false;
-    values[this._lngField()] = Number.isFinite(lngNum) ? lngNum : false;
+    values[this.lngField] = Number.isFinite(lngNum) ? lngNum : false;
 
-    // ✅ correcto en Odoo 19
-    return this.props.record.update(values);
+    // ✅ API correcta en Odoo 19
+    await this.props.record.update(values);
   }
 
-  _currentLatLng() {
-    const lat = this.props.record.data[this.props.name];
-    const lng = this.props.record.data[this._lngField()];
-    return {
-      lat: (lat === false || lat === null || lat === undefined) ? null : Number(lat),
-      lng: (lng === false || lng === null || lng === undefined) ? null : Number(lng),
-    };
+  _setMarker(lat, lng) {
+    if (!this.map) return;
+
+    if (this.marker) {
+      this.marker.setLatLng([lat, lng]);
+    } else {
+      this.marker = window.L.marker([lat, lng], { draggable: false }).addTo(this.map);
+    }
   }
 
-  _initMap() {
+  _initLeafletDefaultIconFix() {
+    // Fix típico en Odoo/asset pipeline: rutas de iconos de Leaflet
+    const L = window.L;
+    if (!L || !L.Icon || !L.Icon.Default) return;
+
+    const base = "/motel/static/lib/leaflet/images/";
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: base + "marker-icon-2x.png",
+      iconUrl: base + "marker-icon.png",
+      shadowUrl: base + "marker-shadow.png",
+    });
+  }
+
+  _initMapSafe() {
+    const el = this.mapRef.el;
+
+    if (!el) return;
+
     if (!window.L) {
-      console.error("[geo_picker] Leaflet no está cargado (window.L missing)");
+      console.error("[geo_picker] Leaflet no está cargado (window.L undefined). Revisa web.assets_backend.");
       return;
     }
 
-    const el = this.el?.querySelector(".o_geo_picker_map");
-    if (!el) return;
+    // Si el contenedor está invisible o con height 0 cuando monta, Leaflet se rompe.
+    // Solución: inicializar con un pequeño delay y luego invalidateSize.
+    setTimeout(() => {
+      try {
+        this._initLeafletDefaultIconFix();
 
-    const { lat, lng } = this._currentLatLng();
-    const start = (Number.isFinite(lat) && Number.isFinite(lng)) ? [lat, lng] : [19.4326, -99.1332];
+        const L = window.L;
 
-    this.map = L.map(el).setView(start, (start[0] === 19.4326 ? 5 : 14));
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap",
-    }).addTo(this.map);
+        // Centro por defecto (CDMX) si no hay coords
+        const fallback = { lat: 19.4326, lng: -99.1332 };
+        const current = this._getLatLngFromRecord() || fallback;
 
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      this.marker = L.marker([lat, lng]).addTo(this.map);
-    }
+        this.map = L.map(el, { zoomControl: true }).setView([current.lat, current.lng], 11);
 
-    this.map.on("click", async (ev) => {
-      const p = ev.latlng;
-      if (!p) return;
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap",
+        }).addTo(this.map);
 
-      if (this.marker) this.marker.setLatLng(p);
-      else this.marker = L.marker(p).addTo(this.map);
+        // Pin inicial si hay coords válidas
+        const rec = this._getLatLngFromRecord();
+        if (rec) {
+          this._setMarker(rec.lat, rec.lng);
+        }
 
-      await this._write(p.lat, p.lng);
-    });
+        // Click para colocar pin
+        this.map.on("click", async (ev) => {
+          const lat = ev.latlng.lat;
+          const lng = ev.latlng.lng;
+          this._setMarker(lat, lng);
+          await this._write(lat, lng);
+        });
+
+        // Ajuste de tamaño (muy importante en formularios/notebook)
+        setTimeout(() => {
+          if (this.map) this.map.invalidateSize(true);
+        }, 150);
+      } catch (e) {
+        console.error("[geo_picker] init error:", e);
+      }
+    }, 0);
   }
 
   _destroyMap() {
@@ -80,9 +126,10 @@ export class GeoPickerField extends FloatField {
         this.map.off();
         this.map.remove();
       }
-    } catch {}
-    this.map = null;
-    this.marker = null;
+    } finally {
+      this.map = null;
+      this.marker = null;
+    }
   }
 
   async onClearLocation(ev) {
@@ -91,10 +138,12 @@ export class GeoPickerField extends FloatField {
 
     if (this.marker && this.map) {
       this.map.removeLayer(this.marker);
-      this.marker = null;
     }
+    this.marker = null;
+
     await this._write(false, false);
   }
 }
 
+// ✅ Registro correcto para Odoo 19
 registry.category("fields").add("geo_picker", { component: GeoPickerField });

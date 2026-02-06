@@ -1,13 +1,12 @@
-.o_geo_picker_toolbar{
-  display:flex;
-  align-items:center;
-  gap:.5rem;
-  margin-bottom:.5rem;
-  flex-wrap:wrap;
-}
-.o_geo_picker_map {
-  height: 320px;
+.o_geo_picker__map {
+  height: 420px;
   width: 100%;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  border: 1px solid #ddd;
+}
+.o_geo_picker__toolbar {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
