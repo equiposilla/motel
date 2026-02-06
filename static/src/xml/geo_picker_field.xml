@@ -3,16 +3,17 @@
 
   <t t-name="motel.GeoPickerField" owl="1">
     <div class="o_geo_picker">
-      <div class="o_geo_picker__toolbar">
+      <div class="o_geo_picker__toolbar d-flex align-items-center gap-2 mb-2">
         <button type="button"
                 class="btn btn-secondary btn-sm"
                 t-on-click="onClearLocation">
           Limpiar ubicación
         </button>
-        <span class="text-muted ms-2">Click en el mapa para colocar el pin.</span>
+        <span class="text-muted">Click en el mapa para colocar el pin.</span>
       </div>
 
-      <div class="o_geo_picker__map" t-ref="map"></div>
+      <!-- IMPORTANTE: este contenedor debe tener altura por CSS -->
+      <div class="o_geo_picker__map" t-ref="map" role="application" aria-label="Mapa para elegir coordenadas"></div>
     </div>
   </t>
 
