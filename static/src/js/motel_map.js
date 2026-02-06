@@ -142,7 +142,7 @@ async function boot() {
   load();
 }
 
-if (document.readyState === "loading") {
+if (document.readyState === "loading") { 
   document.addEventListener("DOMContentLoaded", boot);
 } else {
   boot();

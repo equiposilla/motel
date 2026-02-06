@@ -4,7 +4,7 @@ import { registry } from "@web/core/registry";
 import { FloatField } from "@web/views/fields/float/float_field";
 import { onMounted, onWillUnmount } from "@odoo/owl";
 
-export class GeoPickerField extends FloatField {
+export class GeoPickerField extends FloatField { 
   static template = "motel.GeoPickerField";
 
   setup() {
