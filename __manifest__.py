@@ -55,4 +55,5 @@
     "installable": True,
     "application": True,
     "license": "LGPL-3",
+    "icon": "motel/static/description/icon.png",
 }
