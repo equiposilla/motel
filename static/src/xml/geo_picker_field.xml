@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
+
   <t t-name="motel.GeoPickerField" owl="1">
     <div class="o_geo_picker">
-      <div class="d-flex gap-2 mb-2">
-        <button type="button" class="btn btn-secondary btn-sm" t-on-click="onClearLocation">
+      <div class="o_geo_picker__toolbar">
+        <button type="button"
+                class="btn btn-secondary btn-sm"
+                t-on-click="onClearLocation">
           Limpiar ubicación
         </button>
-        <span class="text-muted small align-self-center">
-          Click en el mapa para colocar el pin.
-        </span>
+        <span class="text-muted ms-2">Click en el mapa para colocar el pin.</span>
       </div>
-      <div class="o_geo_picker_map" style="height: 320px; border-radius: 8px; overflow: hidden;"></div>
+
+      <div class="o_geo_picker__map" t-ref="map"></div>
     </div>
   </t>
+
 </templates>
